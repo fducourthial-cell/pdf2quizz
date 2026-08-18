@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     };
 
     // 3. Configurer le modèle Gemini (Gemini 1.5 Flash est idéal pour la rapidité)
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
 
     // 4. Le Prompt Engineering (Crucial pour forcer le format JSON)
     const prompt = `
