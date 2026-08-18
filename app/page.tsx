@@ -24,14 +24,13 @@ export default function NewQuizPage() {
       // --- ÉTAPE 1 : Upload vers Supabase Storage ---
       setUploadStatus('Envoi du PDF vers le cloud...');
       const fileExt = pdfFile.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('pdfs')
-        .upload(filePath, pdfFile, {
+        .upload(fileName, pdfFile, {
           cacheControl: '3600',
-          upsert: false
+          upsert: true
         });
 
       if (uploadError) {
@@ -40,7 +39,7 @@ export default function NewQuizPage() {
 
       const { data: { publicUrl } } = supabase.storage
         .from('pdfs')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
       console.log("✅ PDF uploadé avec succès ! URL :", publicUrl);
 
