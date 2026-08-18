@@ -59,6 +59,18 @@ export async function POST(req: Request) {
     const result = await model.generateContent([prompt, pdfPart]);
     const responseText = result.response.text();
 
+    // Exemple à ajouter dans ton route.ts avant le return final :
+const { data: savedQuiz, error: dbError } = await supabase
+  .from('quizzes')
+  .insert([
+    { 
+      pdf_url: pdfUrl, 
+      title: "Quiz généré par l'IA", 
+      questions: quiz 
+    }
+  ])
+  .select();
+
     // 6. Nettoyage et parsing du JSON (Gemini peut parfois rajouter des balises markdown)
     const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const quizData = JSON.parse(cleanedText);
