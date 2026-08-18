@@ -1,6 +1,7 @@
 // app/api/generate-quiz/route.ts
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { supabase } from '@/lib/supabase'; // Indispensable pour enregistrer en base
 
 // INDISPENSABLE : Allonge la durée maximale d'exécution sur Vercel pour éviter les timeouts
 export const maxDuration = 60; 
@@ -33,10 +34,10 @@ export async function POST(req: Request) {
       },
     };
 
-    // 3. Configurer le modèle Gemini (Gemini 1.5 Flash est idéal pour la rapidité)
+    // 3. Configurer le modèle Gemini
     const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
 
-    // 4. Le Prompt Engineering (Crucial pour forcer le format JSON)
+    // 4. Le Prompt Engineering
     const prompt = `
       Agis comme un concepteur pédagogique expert.
       Analyse le document PDF fourni et crée un quiz de ${settings.questionCount} questions de type "${settings.type}" avec un niveau de difficulté "${settings.difficulty}".
@@ -59,21 +60,27 @@ export async function POST(req: Request) {
     const result = await model.generateContent([prompt, pdfPart]);
     const responseText = result.response.text();
 
-    // Exemple à ajouter dans ton route.ts avant le return final :
-const { data: savedQuiz, error: dbError } = await supabase
-  .from('quizzes')
-  .insert([
-    { 
-      pdf_url: pdfUrl, 
-      title: "Quiz généré par l'IA", 
-      questions: quiz 
-    }
-  ])
-  .select();
-
-    // 6. Nettoyage et parsing du JSON (Gemini peut parfois rajouter des balises markdown)
+    // 6. Nettoyage et parsing du JSON
     const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const quizData = JSON.parse(cleanedText);
+
+    // 7. Enregistrement dans la base de données Supabase
+    const { error: dbError } = await supabase
+      .from('quizzes')
+      .insert([
+        { 
+          pdf_url: pdfUrl, 
+          title: `Quiz (${settings.type.toUpperCase()})`, 
+          questions: quizData 
+        }
+      ]);
+
+    if (dbError) {
+      console.error("Erreur d'enregistrement Supabase :", dbError.message);
+      // On continue quand même pour renvoyer le quiz au front si besoin
+    } else {
+      console.log("✅ Quiz enregistré en base de données avec succès !");
+    }
 
     return NextResponse.json({ success: true, quiz: quizData });
 
