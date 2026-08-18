@@ -5,6 +5,12 @@ import Link from 'next/link';
 import { Plus, FileText, Clock, Trash2, Settings, User } from 'lucide-react';
 
 export const metadata = {
+  title: 'PDF2Quiz',
+  description: 'Générez des quiz à partir de vos PDF',
+  manifest: '/manifest.json', // <-- Ajoute cette ligne
+};
+
+export const metadata = {
   title: 'PDF2Quiz - Création IA',
   description: 'Générez des quiz automatiquement à partir de PDF',
 };
