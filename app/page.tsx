@@ -25,7 +25,7 @@ export default function NewQuizPage() {
       setUploadStatus('Envoi du PDF vers le cloud...');
       const fileExt = pdfFile.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
+      const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('pdfs')
