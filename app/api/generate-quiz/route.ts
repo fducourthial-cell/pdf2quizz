@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export const maxDuration = 60; 
 
 // Initialisation du client Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_2 || '');
 
 export async function POST(req: Request) {
   try {
