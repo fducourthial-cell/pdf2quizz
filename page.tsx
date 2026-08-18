@@ -2,15 +2,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import Dropzone from '@/components/Dropzone'; // Ajuste le chemin d'import selon ton dossier
+import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
+import { supabase } from '@/lib/supabase'; // Indispensable pour l'upload
 
 export default function NewQuizPage() {
-  // État pour stocker le fichier PDF uploadé
+  // États de l'application
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  
-  // État pour gérer le chargement lors de l'appel API (Phase 3)
   const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>(''); // Ajouté !
 
   // Callback quand la Dropzone valide un fichier
   const handleFileAccepted = (file: File) => {
@@ -21,20 +21,64 @@ export default function NewQuizPage() {
   const handleGenerateQuiz = async (settings: QuizConfig) => {
     if (!pdfFile) return;
 
-    setIsGenerating(true);
-    
-    // Pour le moment, on affiche juste les données dans la console
-    console.log("🚀 Lancement de la génération !");
-    console.log("Fichier :", pdfFile.name);
-    console.log("Paramètres :", settings);
+    try {
+      setIsGenerating(true);
+      
+      // --- ÉTAPE 1 : Upload du fichier sur Supabase Storage ---
+      setUploadStatus('Envoi du PDF vers le cloud...');
+      const fileExt = pdfFile.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`; // Nom unique
+      const filePath = `uploads/${fileName}`;
 
-    // TODO: Phase 3 - Upload vers Supabase Storage & Appel API Gemini
-    
-    // Simulation d'attente pour le moment...
-    setTimeout(() => {
+      const { error: uploadError } = await supabase.storage
+        .from('pdfs')
+        .upload(filePath, pdfFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`Erreur d'upload : ${uploadError.message}`);
+      }
+
+      // On récupère l'URL publique du fichier que l'on vient d'uploader
+      const { data: { publicUrl } } = supabase.storage
+        .from('pdfs')
+        .getPublicUrl(filePath);
+
+      console.log("✅ PDF uploadé avec succès ! URL :", publicUrl);
+
+      // --- ÉTAPE 2 : Appel de notre API Next.js (qui va appeler Gemini) ---
+      setUploadStatus('Analyse du document par l\'IA (cela peut prendre 30s)...');
+
+      const apiResponse = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          pdfUrl: publicUrl, // On utilise l'URL récupérée à l'étape 1
+          settings: settings 
+        }),
+      });
+
+      const data = await apiResponse.json();
+
+      if (!apiResponse.ok) {
+        throw new Error(data.error || 'Erreur lors de la génération du quiz');
+      }
+
+      // --- SUCCÈS ---
+      console.log("🎉 Quiz généré avec succès !", data.quiz);
+      alert("Quiz généré ! Regarde la console de ton navigateur.");
+      // Bientôt : on enregistrera data.quiz dans Supabase Database ici !
+
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Une erreur est survenue.");
+    } finally {
+      // On remet l'interface à zéro
       setIsGenerating(false);
-      alert("Simulation : Quiz généré avec succès !");
-    }, 2000);
+      setUploadStatus('');
+    }
   };
 
   return (
@@ -49,9 +93,9 @@ export default function NewQuizPage() {
       {isGenerating ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center justify-center min-h-[400px]">
           <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Analyse du document en cours...</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Génération en cours...</h2>
           <p className="text-gray-500 text-center max-w-sm">
-            Notre IA extrait les concepts clés et rédige vos questions. Cette opération peut prendre quelques secondes.
+            {uploadStatus} {/* Affiche l'étape en cours dynamiquement */}
           </p>
         </div>
       ) : (
@@ -61,7 +105,7 @@ export default function NewQuizPage() {
             <Dropzone onFileAccepted={handleFileAccepted} />
           </div>
 
-          {/* Composant Paramètres (le bouton est désactivé si pdfFile est null) */}
+          {/* Composant Paramètres */}
           <QuizSettings 
             isSubmitDisabled={!pdfFile} 
             onSubmit={handleGenerateQuiz} 
