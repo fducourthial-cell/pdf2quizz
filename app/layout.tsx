@@ -4,15 +4,11 @@ import React from 'react';
 import Link from 'next/link';
 import { Plus, FileText, Clock, Trash2, Settings, User } from 'lucide-react';
 
-export const metadata = {
-  title: 'PDF2Quiz',
-  description: 'Générez des quiz à partir de vos PDF',
-  manifest: '/manifest.json', // <-- Ajoute cette ligne
-};
-
+// Un seul objet metadata combinant le titre, la description et le lien vers le manifest PWA
 export const metadata = {
   title: 'PDF2Quiz - Création IA',
   description: 'Générez des quiz automatiquement à partir de PDF',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
