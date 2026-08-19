@@ -85,6 +85,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
 
       </body>
+      <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+  <FileText size={18} />
+  Mes Quiz
+</Link>
     </html>
   );
 }
