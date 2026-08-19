@@ -33,27 +33,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="space-y-6">
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Bibliothèque</p>
-                <ul className="space-y-1">
-                  <li>
-                    {/* Lien corrigé vers la page bibliothèque */}
-                    <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
-                      <FileText size={18} />
-                      Mes Quiz
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 transition-colors">
-                      <Clock size={18} />
-                      Récents
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 transition-colors">
-                      <Trash2 size={18} />
-                      Corbeille
-                    </Link>
-                  </li>
-                </ul>
+               <ul className="space-y-1">
+  <li>
+    <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+      <FileText size={18} />
+      Mes Quiz
+    </Link>
+  </li>
+  <li>
+    <Link href="/recents" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+      <Clock size={18} />
+      Récents
+    </Link>
+  </li>
+  <li>
+    <Link href="/corbeille" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+      <Trash2 size={18} />
+      Corbeille
+    </Link>
+  </li>
+</ul>
               </div>
             </nav>
           </div>
