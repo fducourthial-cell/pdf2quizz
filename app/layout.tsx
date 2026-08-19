@@ -4,7 +4,6 @@ import React from 'react';
 import Link from 'next/link';
 import { Plus, FileText, Clock, Trash2, Settings, User } from 'lucide-react';
 
-// Un seul objet metadata combinant le titre, la description et le lien vers le manifest PWA
 export const metadata = {
   title: 'PDF2Quiz - Création IA',
   description: 'Générez des quiz automatiquement à partir de PDF',
@@ -26,17 +25,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="text-xl font-bold tracking-tight">PDF2Quiz</span>
             </div>
 
-            <button className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors mb-8">
+            <Link href="/" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors mb-8">
               <Plus size={20} />
               Nouveau Quiz
-            </button>
+            </Link>
 
             <nav className="space-y-6">
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Bibliothèque</p>
                 <ul className="space-y-1">
                   <li>
-                    <Link href="/" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+                    {/* Lien corrigé vers la page bibliothèque */}
+                    <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
                       <FileText size={18} />
                       Mes Quiz
                     </Link>
@@ -79,16 +79,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </aside>
 
-        {/* ZONE CENTRALE (Le contenu de page.tsx s'injecte ici) */}
+        {/* ZONE CENTRALE (Le contenu de page.tsx ou bibliotheque/page.tsx s'injecte ici) */}
         <main className="flex-1 flex flex-col h-screen overflow-y-auto p-8">
           {children}
         </main>
 
       </body>
-      <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
-  <FileText size={18} />
-  Mes Quiz
-</Link>
     </html>
   );
 }
