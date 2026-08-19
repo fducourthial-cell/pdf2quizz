@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FileText, Calendar, ArrowRight, Trash2 } from 'lucide-react';
+import { FileText, Calendar, ArrowRight, Trash2, Edit2, Check, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface QuizItem {
@@ -18,7 +18,11 @@ export default function BibliothequePage() {
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Charger les quiz depuis Supabase au chargement de la page
+  // États pour gérer l'édition du nom d'un quiz
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState<string>('');
+
+  // Charger les quiz depuis Supabase
   useEffect(() => {
     async function fetchQuizzes() {
       try {
@@ -39,16 +43,44 @@ export default function BibliothequePage() {
     fetchQuizzes();
   }, []);
 
+  // Activer le mode édition pour un quiz
+  const handleStartEdit = (quiz: QuizItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    setEditingId(quiz.id);
+    setNewTitle(quiz.title || '');
+  };
+
+  // Sauvegarder le nouveau nom dans Supabase
+  const handleSaveTitle = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ title: newTitle })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Mettre à jour l'état local
+      setQuizzes(quizzes.map(q => q.id === id ? { ...q, title: newTitle } : q));
+      setEditingId(null);
+    } catch (err) {
+      console.error("Erreur lors de la modification du titre :", err);
+      alert("Erreur lors de la mise à jour du titre.");
+    }
+  };
+
   // Fonction pour supprimer un quiz
   const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault(); // Empêche de cliquer sur la carte
+    e.preventDefault();
     if (!confirm("Voulez-vous vraiment supprimer ce quiz ?")) return;
 
     try {
       const { error } = await supabase.from('quizzes').delete().eq('id', id);
       if (error) throw error;
       
-      // Met à jour l'interface en retirant le quiz supprimé
       setQuizzes(quizzes.filter(q => q.id !== id));
     } catch (err) {
       console.error("Erreur lors de la suppression :", err);
@@ -81,50 +113,92 @@ export default function BibliothequePage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {quizzes.map((quiz) => (
-            <div 
-              key={quiz.id}
-              className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-300 transition flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
-                    {quiz.questions?.length || 0} questions
-                  </span>
-                  <button 
-                    onClick={(e) => handleDelete(quiz.id, e)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                    title="Supprimer"
+          {quizzes.map((quiz) => {
+            const isEditing = editingId === quiz.id;
+
+            return (
+              <div 
+                key={quiz.id}
+                className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-300 transition flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
+                      {quiz.questions?.length || 0} questions
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {!isEditing && (
+                        <button 
+                          onClick={(e) => handleStartEdit(quiz, e)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Modifier le nom"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      )}
+                      <button 
+                        onClick={(e) => handleDelete(quiz.id, e)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Affichage du titre ou de l'input d'édition */}
+                  {isEditing ? (
+                    <div className="flex items-center gap-2 mb-3">
+                      <input 
+                        type="text"
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-blue-500 rounded-lg text-sm outline-none bg-blue-50/30"
+                        autoFocus
+                      />
+                      <button 
+                        onClick={(e) => handleSaveTitle(quiz.id, e)}
+                        className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                        title="Valider"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.preventDefault(); setEditingId(null); }}
+                        className="p-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                        title="Annuler"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-1">
+                      {quiz.title || "Quiz sans titre"}
+                    </h3>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
+                    <Calendar size={14} />
+                    <span>{new Date(quiz.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <a 
+                    href={quiz.pdf_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-1">
-                  {quiz.title || "Quiz sans titre"}
-                </h3>
-
-                <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
-                  <Calendar size={14} />
-                  <span>{new Date(quiz.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    Voir le PDF source
+                  </a>
+                  <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                    Bientôt dispo <ArrowRight size={14} />
+                  </span>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <a 
-                  href={quiz.pdf_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
-                >
-                  Voir le PDF source
-                </a>
-                <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
-                  Bientôt dispo <ArrowRight size={14} />
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
