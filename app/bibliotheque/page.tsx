@@ -184,18 +184,21 @@ export default function BibliothequePage() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <a 
-                    href={quiz.pdf_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
-                  >
-                    Voir le PDF source
-                  </a>
-                  <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
-                    Bientôt dispo <ArrowRight size={14} />
-                  </span>
-                </div>
+  <a 
+    href={quiz.pdf_url} 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
+  >
+    Voir le PDF source
+  </a>
+  <Link 
+    href={`/quiz/${quiz.id}`}
+    className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+  >
+    Jouer <ArrowRight size={14} />
+  </Link>
+</div>
               </div>
             );
           })}
