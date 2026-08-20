@@ -65,6 +65,36 @@ export default function PlayQuizPage() {
     return score;
   };
 
+  // Nouvelle fonction pour valider le quiz et sauvegarder le score dans Supabase
+  const handleValidate = async () => {
+    setShowResults(true);
+    
+    if (!quiz || !quiz.questions) return;
+    
+    const correctCount = calculateScore();
+    const totalQuestions = quiz.questions.length;
+    const percentage = (correctCount / totalQuestions) * 100;
+    const isPassed = percentage >= 80;
+
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ 
+          score: correctCount,
+          passed: isPassed 
+        })
+        .eq('id', quizId);
+
+      if (error) {
+        console.error("Erreur Supabase lors de la sauvegarde :", error.message);
+      } else {
+        console.log("✅ Résultat sauvegardé :", { score: correctCount, passed: isPassed });
+      }
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde du score :", err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -145,7 +175,7 @@ export default function PlayQuizPage() {
         {!showResults ? (
           <div className="flex justify-end pt-4">
             <button
-              onClick={() => setShowResults(true)}
+              onClick={handleValidate}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition"
             >
               Valider mes réponses
