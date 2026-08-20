@@ -34,8 +34,8 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
       return;
     }
     // Vérification de la taille (10Mo max)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Erreur : Le fichier est trop lourd (Max 10Mo).');
+    if (file.size > 50 * 1024 * 1024) {
+      alert('Erreur : Le fichier est trop lourd (Max 50Mo).');
       return;
     }
     setSelectedFile(file);
