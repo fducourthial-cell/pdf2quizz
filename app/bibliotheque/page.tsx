@@ -124,11 +124,26 @@ export default function BibliothequePage() {
                 className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-blue-300 transition flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
-                      {quiz.questions?.length || 0} questions
-                    </span>
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-start justify-between mb-3 gap-2">
+                    
+                    {/* Zone de gauche : Nombre de questions + Badge */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
+                        {quiz.questions?.length || 0} questions
+                      </span>
+
+                      {quiz.passed && (
+                        <div className="flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-medium border border-green-200 shadow-sm" title="Quiz réussi avec 80% ou plus !">
+                          <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
+                          </svg>
+                          <span>Validé</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Zone de droite : Boutons Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
                       {!isEditing && (
                         <button 
                           onClick={(e) => handleStartEdit(quiz, e)}
@@ -147,22 +162,6 @@ export default function BibliothequePage() {
                       </button>
                     </div>
                   </div>
-
-<div className="flex items-center justify-between mb-3">
-  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
-    {quiz.questions?.length || 0} questions
-  </span>
-
-  {/* Badge vert de réussite si >= 80% */}
-  {quiz.passed && (
-    <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-medium border border-green-200 shadow-sm" title="Quiz réussi avec 80% ou plus !">
-      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
-      </svg>
-      <span>Validé (≥80%)</span>
-    </div>
-  )}
-</div>
                   
                   {/* Affichage du titre ou de l'input d'édition */}
                   {isEditing ? (
@@ -202,21 +201,21 @@ export default function BibliothequePage() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-  <a 
-    href={quiz.pdf_url} 
-    target="_blank" 
-    rel="noopener noreferrer"
-    className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
-  >
-    Voir le PDF source
-  </a>
-  <Link 
-    href={`/quiz/${quiz.id}`}
-    className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
-  >
-    Jouer <ArrowRight size={14} />
-  </Link>
-</div>
+                  <a 
+                    href={quiz.pdf_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-gray-500 hover:text-blue-600 underline truncate max-w-[180px]"
+                  >
+                    Voir le PDF source
+                  </a>
+                  <Link 
+                    href={`/quiz/${quiz.id}`}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+                  >
+                    Jouer <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
             );
           })}
