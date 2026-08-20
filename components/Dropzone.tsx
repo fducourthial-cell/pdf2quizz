@@ -120,7 +120,7 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
         Glissez-déposez votre document PDF ici ou <span className="text-blue-600 underline">parcourir</span>
       </h3>
       <p className="text-sm text-gray-500">
-        Formats acceptés : PDF uniquement (Max 10Mo)
+        Formats acceptés : PDF uniquement (Max 50Mo)
       </p>
 
       {/* Overlay visuel subtil pendant le drag */}
