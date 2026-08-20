@@ -12,6 +12,8 @@ interface QuizItem {
   title: string;
   pdf_url: string;
   questions: any[];
+  score?: number;
+  passed?: boolean; 
 }
 
 export default function BibliothequePage() {
