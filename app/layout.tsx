@@ -23,14 +23,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       
       {/* NOUVEAU LOGO */}
       <Image 
-        src="/icone.png" 
+        src="/ban.png" 
         alt="Logo PDF2Quiz" 
-        width={40} 
-        height={40} 
+        width={160} 
+        height={80} 
         className="rounded-lg"
       />
       
-      <span className="text-xl font-bold tracking-tight">PDF2Quiz</span>
     </div>
 
             <Link href="/" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors mb-8">
