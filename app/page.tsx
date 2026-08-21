@@ -114,6 +114,23 @@ export default function NewQuizPage() {
     setShowResults(false);
   };
 
+  const handleGoogleLogin = async () => {
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Redirige l'utilisateur vers la bibliothèque une fois connecté
+        redirectTo: `${window.location.origin}/bibliotheque` 
+      }
+    });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("Erreur de connexion Google :", error);
+    alert("Impossible de se connecter avec Google.");
+  }
+};
+
   return (
     <div className="max-w-3xl mx-auto pb-16">
       
