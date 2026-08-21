@@ -1,11 +1,11 @@
 // components/Dropzone.tsx
-'use client'; // Obligatoire pour utiliser useState/useEffect
+'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, FileText, X } from 'lucide-react';
+import { UploadCloud, FileText, X, Image as ImageIcon } from 'lucide-react'; // Ajout de ImageIcon pour les images
 
 interface DropzoneProps {
-  onFileAccepted: (file: File) => void; // Fonction callback pour le parent
+  onFileAccepted: (file: File) => void;
 }
 
 export default function Dropzone({ onFileAccepted }: DropzoneProps) {
@@ -18,22 +18,24 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragActive(true); // Active l'effet visuel
+    setIsDragActive(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragActive(false); // Désactive l'effet visuel
+    setIsDragActive(false);
   }, []);
 
   const validateAndSetFile = (file: File) => {
-    // Vérification basique du type MIME
-    if (file.type !== 'application/pdf') {
-      alert('Erreur : Veuillez déposer un fichier PDF uniquement.');
+    // 1. MODIFICATION ICI : Liste des formats autorisés
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+    
+    if (!allowedTypes.includes(file.type)) {
+      alert('Erreur : Veuillez déposer un fichier PDF ou une image (PNG, JPG, WEBP).');
       return;
     }
-    // Vérification de la taille (10Mo max)
+    // Vérification de la taille (50Mo max)
     if (file.size > 50 * 1024 * 1024) {
       alert('Erreur : Le fichier est trop lourd (Max 50Mo).');
       return;
@@ -67,14 +69,20 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
 
   // 1. État : Fichier déjà sélectionné
   if (selectedFile) {
+    const isImage = selectedFile.type.startsWith('image/');
+    
     return (
       <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 flex items-center gap-4">
         <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
-          <FileText size={24} />
+          {/* Affiche une icône différente si c'est une image */}
+          {isImage ? <ImageIcon size={24} /> : <FileText size={24} />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm text-gray-900 truncate">{selectedFile.name}</p>
-          <p className="text-xs text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} Mo - PDF</p>
+          <p className="text-xs text-gray-500">
+            {/* Affiche dynamiquement l'extension au lieu de forcer "- PDF" */}
+            {(selectedFile.size / 1024 / 1024).toFixed(2)} Mo - {selectedFile.name.split('.').pop()?.toUpperCase()}
+          </p>
         </div>
         <button 
           onClick={() => setSelectedFile(null)} // Annuler
@@ -103,12 +111,12 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
           : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}
       `}
     >
-      {/* Input caché requis pour le clic */}
+      {/* 2. MODIFICATION ICI : On autorise les images dans la fenêtre de sélection */}
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileChange} 
-        accept="application/pdf" 
+        accept="application/pdf, image/png, image/jpeg, image/webp" 
         className="hidden" 
       />
 
@@ -117,16 +125,16 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
       </div>
 
       <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        Glissez-déposez votre document PDF ici ou <span className="text-blue-600 underline">parcourir</span>
+        Glissez-déposez votre document ou image ici ou <span className="text-blue-600 underline">parcourir</span>
       </h3>
       <p className="text-sm text-gray-500">
-        Formats acceptés : PDF uniquement (Max 50Mo)
+        Formats acceptés : PDF, PNG, JPG, WEBP (Max 50Mo)
       </p>
 
       {/* Overlay visuel subtil pendant le drag */}
       {isDragActive && (
         <div className="absolute inset-0 bg-blue-500/5 rounded-2xl flex items-center justify-center">
-          <p className="text-2xl font-bold text-blue-600">Déposez le PDF</p>
+          <p className="text-2xl font-bold text-blue-600">Déposez le fichier</p>
         </div>
       )}
     </div>
