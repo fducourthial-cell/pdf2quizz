@@ -48,12 +48,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </Link>
                   </li>
                   <li>
-                    <Link href="/recents" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
-                      <Clock size={18} />
-                      Récents
-                    </Link>
-                  </li>
-                  <li>
                     <Link href="/certificats" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
                       <Award size={18} />
                       Mes Certifications
@@ -63,12 +57,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <Link href="/corbeille" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
                       <Trash2 size={18} />
                       Corbeille
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/profil" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
-                      <User size={18} />
-                      Profil & Paramètres
                     </Link>
                   </li>
                 </ul>
