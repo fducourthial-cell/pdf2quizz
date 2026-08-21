@@ -54,7 +54,7 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-semibold mb-3 text-gray-900">6. Vos droits (RGPD)</h2>
           <p>
             Conformément à la réglementation européenne, vous disposez d'un droit d'accès, de rectification, de suppression et de portabilité de vos données. 
-            Pour exercer ces droits, vous pouvez nous contacter à l'adresse suivante : <strong>[TON ADRESSE EMAIL PRO]</strong>.
+            Pour exercer ces droits, vous pouvez nous contacter à l'adresse suivante : <strong>f.ducourthial@gmail.com</strong>.
           </p>
         </section>
       </div>
