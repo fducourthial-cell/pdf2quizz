@@ -132,7 +132,7 @@ export default function NewQuizPage() {
       
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un nouveau quiz</h1>
-        <p className="text-gray-500">Importez un document PDF et laissez l'IA concevoir vos questions sur-mesure.</p>
+        <p className="text-gray-500">Importez un document PDF et concevoir vos questions sur-mesure.</p>
       </header>
 
       {/* 1. Écran de chargement */}
