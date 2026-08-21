@@ -1,11 +1,11 @@
 // app/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle2, XCircle, RotateCcw, Award } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, Award, LogOut, Mail, Lock } from 'lucide-react';
 
 interface Question {
   question: string;
@@ -15,15 +15,76 @@ interface Question {
 }
 
 export default function NewQuizPage() {
+  // --- ÉTATS D'AUTHENTIFICATION ---
+  const [session, setSession] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  
+  // États pour le formulaire Email/Mot de passe
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  // --- ÉTATS DU QUIZ ---
   const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
-  
-  // États pour le quiz interactif
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
 
+  // --- VÉRIFICATION DE LA SESSION AU CHARGEMENT ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoadingAuth(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // --- FONCTIONS D'AUTHENTIFICATION ---
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Erreur Google :", error);
+      alert("Impossible de se connecter avec Google.");
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        alert("Inscription réussie ! Vérifiez vos emails pour confirmer votre compte (si activé sur Supabase).");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (error: any) {
+      alert(error.message || "Une erreur est survenue lors de l'authentification.");
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // --- FONCTIONS DU QUIZ ---
   const handleFileAccepted = (acceptedFile: File) => {
     setFile(acceptedFile);
     setQuizQuestions(null);
@@ -36,49 +97,31 @@ export default function NewQuizPage() {
 
     try {
       setIsGenerating(true);
-      
-      // --- ÉTAPE 1 : Upload vers Supabase Storage ---
       setUploadStatus('Envoi du fichier vers le cloud...');
       
-      // On récupère l'extension réelle du fichier (pdf, png, jpg, etc.)
       const fileExt = file.name.split('.').pop();
       const cleanFileName = `quiz-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('pdfs')
-        .upload(cleanFileName, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+        .upload(cleanFileName, file, { cacheControl: '3600', upsert: true });
 
-      if (uploadError) {
-        throw new Error(`Erreur d'upload : ${uploadError.message}`);
-      }
+      if (uploadError) throw new Error(`Erreur d'upload : ${uploadError.message}`);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('pdfs')
-        .getPublicUrl(cleanFileName);
+      const { data: { publicUrl } } = supabase.storage.from('pdfs').getPublicUrl(cleanFileName);
 
-      // --- ÉTAPE 2 : Appel de l'API Gemini ---
       setUploadStatus('Analyse du fichier par l\'IA (cela peut prendre 30s)...');
 
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          pdfUrl: publicUrl, // On garde cette clé pour la compatibilité avec l'API existante
-          settings: settings 
-        }),
+        body: JSON.stringify({ pdfUrl: publicUrl, settings: settings }),
       });
 
       const data = await apiResponse.json();
-
-      if (!apiResponse.ok) {
-        throw new Error(data.error || 'Erreur lors de la génération du quiz');
-      }
+      if (!apiResponse.ok) throw new Error(data.error || 'Erreur lors de la génération du quiz');
 
       setQuizQuestions(data.quiz);
-
     } catch (error: any) {
       console.error(error);
       alert(error.message || "Une erreur est survenue.");
@@ -90,19 +133,14 @@ export default function NewQuizPage() {
 
   const handleSelectOption = (questionIndex: number, option: string) => {
     if (showResults) return;
-    setSelectedAnswers(prev => ({
-      ...prev,
-      [questionIndex]: option
-    }));
+    setSelectedAnswers(prev => ({ ...prev, [questionIndex]: option }));
   };
 
   const calculateScore = () => {
     if (!quizQuestions) return 0;
     let score = 0;
     quizQuestions.forEach((q, idx) => {
-      if (selectedAnswers[idx] === q.correctAnswer) {
-        score++;
-      }
+      if (selectedAnswers[idx] === q.correctAnswer) score++;
     });
     return score;
   };
@@ -114,31 +152,119 @@ export default function NewQuizPage() {
     setShowResults(false);
   };
 
-  // --- FONCTION DE CONNEXION GOOGLE ---
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/bibliotheque` 
-        }
-      });
-      if (error) throw error;
-    } catch (error) {
-      console.error("Erreur de connexion Google :", error);
-      alert("Impossible de se connecter avec Google.");
-    }
-  };
+  // ==========================================
+  // ÉCRAN DE CHARGEMENT INITIAL (Vérification Auth)
+  // ==========================================
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
+  // ==========================================
+  // ÉCRAN DE CONNEXION (Si pas de session)
+  // ==========================================
+  if (!session) {
+    return (
+      <div className="max-w-md mx-auto pt-16 pb-16">
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h1>
+            <p className="text-gray-500 text-sm">
+              Connectez-vous pour générer vos quiz sur-mesure.
+            </p>
+          </div>
+
+          <button 
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition font-medium text-gray-700 mb-6"
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+            Continuer avec Google
+          </button>
+
+          <div className="relative flex items-center py-4 mb-2">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink-0 px-4 text-gray-400 text-sm">Ou avec votre email</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Adresse email</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Mail size={18} />
+                </div>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="vous@exemple.fr"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Lock size={18} />
+                </div>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+            <button 
+              type="submit"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition"
+            >
+              {isSignUp ? "Créer mon compte" : "Se connecter"}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              {isSignUp ? "Déjà un compte ? Connectez-vous" : "Pas encore de compte ? Inscrivez-vous"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // L'APPLICATION PRINCIPALE (Si connecté)
+  // ==========================================
   return (
-    <div className="max-w-3xl mx-auto pb-16">
+    <div className="max-w-3xl mx-auto pb-16 pt-8">
       
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un nouveau quiz</h1>
-        <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG) et concevez vos questions sur-mesure.</p>
+      <header className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un nouveau quiz</h1>
+          <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG).</p>
+        </div>
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+        >
+          <LogOut size={16} /> Déconnexion
+        </button>
       </header>
 
-      {/* 1. Écran de chargement */}
+      {/* Reste du code du quiz... */}
       {isGenerating ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center justify-center min-h-[400px]">
           <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
@@ -148,7 +274,6 @@ export default function NewQuizPage() {
           </p>
         </div>
       ) : quizQuestions ? (
-        /* 2. Affichage du Quiz Interactif */
         <div className="space-y-6">
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex items-center justify-between">
             <div>
@@ -239,7 +364,6 @@ export default function NewQuizPage() {
                 </button>
               </div>
 
-              {/* Affichage conditionnel de la Certification si 100% */}
               {calculateScore() === quizQuestions.length && (
                 <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
                   <CheckCircle2 className="text-yellow-500 shrink-0" size={24} />
@@ -255,19 +379,16 @@ export default function NewQuizPage() {
           )}
         </div>
       ) : (
-        /* 3. Écran d'import initial (Dropzone + Paramètres + Connexion) */
         <>
           <div className="mb-6">
             <Dropzone onFileAccepted={handleFileAccepted} />
           </div>
-
           <QuizSettings 
             isSubmitDisabled={!file} 
             onSubmit={handleGenerateQuiz} 
           />
         </>
       )}
-
     </div>
   );
 }
