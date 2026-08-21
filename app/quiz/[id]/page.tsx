@@ -235,56 +235,64 @@ export default function PlayQuizPage() {
         )}
       </div>
 
-      {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
+     {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
       <div className="absolute left-[-9999px] top-[-9999px]">
         <div 
           id="certificate-template" 
-          className="w-[1123px] h-[794px] bg-white p-12 relative flex flex-col items-center justify-center font-sans text-gray-900"
+          className="w-[1123px] h-[794px] bg-white relative flex flex-col items-center justify-center font-sans text-gray-900"
           style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', border: '24px solid #2563eb' }}
         >
           {/* Cadre intérieur */}
           <div className="absolute inset-8 border-4 border-blue-600/30 rounded-2xl pointer-events-none"></div>
 
-          {/* Logo / Badge de validation */}
-          <div className="mb-8">
-            <svg className="w-32 h-32 text-green-500 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
-            </svg>
+          {/* Contenu principal (légèrement remonté pour laisser la place au footer) */}
+          <div className="flex flex-col items-center justify-center w-full mt-[-60px] px-24 text-center">
+            {/* Logo / Badge de validation */}
+            <div className="mb-6">
+              <svg className="w-28 h-28 text-green-500 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
+              </svg>
+            </div>
+
+            <h1 className="text-6xl font-black text-blue-900 mb-3 tracking-tight uppercase">Certificat de Réussite</h1>
+            <p className="text-xl text-gray-600 mb-10">Ce document certifie formellement que</p>
+            
+            <h2 className="text-5xl font-bold text-gray-900 mb-10 pb-4 border-b-2 border-gray-300 px-16 inline-block">
+              {userName}
+            </h2>
+
+            <p className="text-xl text-gray-600 mb-4">A complété avec succès l'évaluation :</p>
+            <h3 className="text-4xl font-bold text-blue-700 max-w-4xl leading-tight">
+              "{quiz.title || 'Évaluation PDF2Quiz'}"
+            </h3>
           </div>
 
-          <h1 className="text-6xl font-black text-blue-900 mb-4 tracking-tight uppercase">Certificat de Réussite</h1>
-          <p className="text-2xl text-gray-600 mb-12">Ce document certifie formellement que</p>
-          
-          <h2 className="text-5xl font-bold text-gray-900 mb-12 pb-4 border-b-2 border-gray-300 px-16">
-            {userName}
-          </h2>
-
-          <p className="text-2xl text-gray-600 mb-6">A complété avec succès l'évaluation :</p>
-          <h3 className="text-4xl font-bold text-blue-700 mb-12 text-center max-w-4xl leading-tight">
-            "{quiz.title || 'Évaluation PDF2Quiz'}"
-          </h3>
-
-          <div className="flex items-center gap-16 mt-8">
-            <div className="text-center">
-              <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
-              <p className="text-4xl font-black text-green-600">{finalPercentage}%</p>
+          {/* Footer parfaitement aligné en bas du cadre */}
+          <div className="absolute bottom-20 left-24 right-24 flex justify-between items-end">
+            
+            {/* Bloc Gauche : Score et Date */}
+            <div className="flex items-center gap-12">
+              <div className="text-left">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
+                <p className="text-4xl font-black text-green-600">{finalPercentage}%</p>
+              </div>
+              <div className="w-px h-12 bg-gray-300"></div>
+              <div className="text-left">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Date d'obtention</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
             </div>
-            <div className="w-px h-16 bg-gray-300"></div>
-            <div className="text-center">
-              <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Date d'obtention</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
-            </div>
-          </div>
 
-          {/* Signature / Tampon plateforme */}
-          <div className="absolute bottom-16 right-16 text-right">
-            <p className="text-lg font-bold text-gray-400">Généré et certifié par</p>
-            <p className="text-2xl font-black text-blue-600">PDF2Quiz AI</p>
+            {/* Bloc Droite : Signature */}
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-400 mb-1">Généré et certifié par</p>
+              <p className="text-3xl font-black text-blue-600 tracking-tight">PDF2Quiz AI</p>
+            </div>
+            
           </div>
         </div>
       </div>
-    </div>
   );
 }
