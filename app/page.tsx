@@ -15,7 +15,7 @@ interface Question {
 }
 
 export default function NewQuizPage() {
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   
@@ -24,26 +24,29 @@ export default function NewQuizPage() {
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
 
-  const handleFileAccepted = (file: File) => {
-    setPdfFile(file);
+  const handleFileAccepted = (acceptedFile: File) => {
+    setFile(acceptedFile);
     setQuizQuestions(null);
     setSelectedAnswers({});
     setShowResults(false);
   };
 
   const handleGenerateQuiz = async (settings: QuizConfig) => {
-    if (!pdfFile) return;
+    if (!file) return;
 
     try {
       setIsGenerating(true);
       
       // --- ÉTAPE 1 : Upload vers Supabase Storage ---
-      setUploadStatus('Envoi du PDF vers le cloud...');
-      const cleanFileName = `quiz-${Date.now()}.pdf`;
+      setUploadStatus('Envoi du fichier vers le cloud...');
+      
+      // On récupère l'extension réelle du fichier (pdf, png, jpg, etc.)
+      const fileExt = file.name.split('.').pop();
+      const cleanFileName = `quiz-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('pdfs')
-        .upload(cleanFileName, pdfFile, {
+        .upload(cleanFileName, file, {
           cacheControl: '3600',
           upsert: true
         });
@@ -57,13 +60,13 @@ export default function NewQuizPage() {
         .getPublicUrl(cleanFileName);
 
       // --- ÉTAPE 2 : Appel de l'API Gemini ---
-      setUploadStatus('Analyse du document par l\'IA (cela peut prendre 30s)...');
+      setUploadStatus('Analyse du fichier par l\'IA (cela peut prendre 30s)...');
 
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          pdfUrl: publicUrl, 
+          pdfUrl: publicUrl, // On garde cette clé pour la compatibilité avec l'API existante
           settings: settings 
         }),
       });
@@ -105,7 +108,7 @@ export default function NewQuizPage() {
   };
 
   const handleReset = () => {
-    setPdfFile(null);
+    setFile(null);
     setQuizQuestions(null);
     setSelectedAnswers({});
     setShowResults(false);
@@ -132,7 +135,7 @@ export default function NewQuizPage() {
       
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un nouveau quiz</h1>
-        <p className="text-gray-500">Importez un document PDF et concevoir vos questions sur-mesure.</p>
+        <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG) et concevez vos questions sur-mesure.</p>
       </header>
 
       {/* 1. Écran de chargement */}
@@ -243,7 +246,7 @@ export default function NewQuizPage() {
           </div>
 
           <QuizSettings 
-            isSubmitDisabled={!pdfFile} 
+            isSubmitDisabled={!file} 
             onSubmit={handleGenerateQuiz} 
           />
         </>
