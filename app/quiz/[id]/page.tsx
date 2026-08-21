@@ -32,13 +32,11 @@ export default function PlayQuizPage() {
     async function fetchQuizAndUser() {
       if (!quizId) return;
       try {
-        // 1. Récupérer l'utilisateur pour le nom sur le certificat
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'Apprenant');
         }
 
-        // 2. Récupérer le quiz
         const { data, error } = await supabase
           .from('quizzes')
           .select('*')
@@ -85,7 +83,7 @@ export default function PlayQuizPage() {
     const percentage = (correctCount / totalQuestions) * 100;
     const isPassed = percentage >= 80;
 
-    try {
+        try {
       await supabase
         .from('quizzes')
         .update({ score: correctCount, passed: isPassed })
@@ -95,18 +93,15 @@ export default function PlayQuizPage() {
     }
   };
 
-  // Fonction pour générer le PDF du certificat
   const exportCertificate = async () => {
     const certificateElement = document.getElementById('certificate-template');
     if (!certificateElement) return;
 
     setIsDownloading(true);
     try {
-      // html2canvas prend une "photo" de notre div cachée
       const canvas = await html2canvas(certificateElement, { scale: 2 });
       const imgData = canvas.toDataURL('image/png');
       
-      // On crée un PDF au format A4 Paysage (landscape)
       const pdf = new jsPDF('landscape', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
@@ -235,7 +230,7 @@ export default function PlayQuizPage() {
         )}
       </div>
 
-     {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
+      {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
       <div className="absolute left-[-9999px] top-[-9999px]">
         <div 
           id="certificate-template" 
@@ -294,5 +289,6 @@ export default function PlayQuizPage() {
           </div>
         </div>
       </div>
+    </div>
   );
 }
