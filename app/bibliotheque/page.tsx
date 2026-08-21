@@ -106,7 +106,7 @@ export default function BibliothequePage() {
     <div className="max-w-4xl mx-auto pb-16">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Mes Quiz</h1>
-        <p className="text-gray-500">Retrouvez l'historique de tous les quiz générés par l'IA à partir de vos PDF.</p>
+        <p className="text-gray-500">Retrouvez l'historique de tous les quiz générés à partir de vos PDF.</p>
       </header>
 
       {loading ? (
