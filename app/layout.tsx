@@ -3,6 +3,7 @@ import './globals.css';
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import AuthSidebar from '@/components/AuthSidebar';
 import { Plus, FileText, Clock, Trash2, Settings, User, Award } from 'lucide-react';
 
 export const metadata = {
