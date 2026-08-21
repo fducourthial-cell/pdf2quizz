@@ -52,6 +52,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       Corbeille
     </Link>
   </li>
+                 <li>
+  <Link href="/profil" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+    <User size={18} />
+    Profil & Paramètres
+  </Link>
+</li>
 </ul>
               </div>
             </nav>
