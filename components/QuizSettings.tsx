@@ -34,7 +34,7 @@ export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSetting
     <form onSubmit={handleSubmit} className="mt-6 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
       <div className="flex items-center gap-2 mb-6">
         <Settings2 size={20} className="text-gray-500" />
-        <h3 className="text-lg font-semibold text-gray-900">Personnalisation de l'IA</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Personnalisation du Quiz</h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
