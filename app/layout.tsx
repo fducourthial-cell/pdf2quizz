@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* SIDEBAR */}
        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between">
   <div className="p-6">
-    <div className="flex items-center gap-2 mb-8">
+    <div className="flex items-center justify-center gap-2 mb-8">
       
       {/* NOUVEAU LOGO */}
       <Image 
