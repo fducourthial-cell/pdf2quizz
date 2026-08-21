@@ -4,8 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, RotateCcw, Award, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, Award, ArrowLeft, Download } from 'lucide-react';
 import Link from 'next/link';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface Question {
   question: string;
@@ -20,14 +22,23 @@ export default function PlayQuizPage() {
   const quizId = params.id;
 
   const [quiz, setQuiz] = useState<any>(null);
+  const [userName, setUserName] = useState<string>('Apprenant');
   const [loading, setLoading] = useState(true);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    async function fetchQuiz() {
+    async function fetchQuizAndUser() {
       if (!quizId) return;
       try {
+        // 1. Récupérer l'utilisateur pour le nom sur le certificat
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'Apprenant');
+        }
+
+        // 2. Récupérer le quiz
         const { data, error } = await supabase
           .from('quizzes')
           .select('*')
@@ -37,13 +48,13 @@ export default function PlayQuizPage() {
         if (error) throw error;
         if (data) setQuiz(data);
       } catch (err) {
-        console.error("Erreur lors du chargement du quiz :", err);
+        console.error("Erreur lors du chargement :", err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchQuiz();
+    fetchQuizAndUser();
   }, [quizId]);
 
   const handleSelectOption = (questionIndex: number, option: string) => {
@@ -65,10 +76,8 @@ export default function PlayQuizPage() {
     return score;
   };
 
-  // Nouvelle fonction pour valider le quiz et sauvegarder le score dans Supabase
   const handleValidate = async () => {
     setShowResults(true);
-    
     if (!quiz || !quiz.questions) return;
     
     const correctCount = calculateScore();
@@ -77,21 +86,38 @@ export default function PlayQuizPage() {
     const isPassed = percentage >= 80;
 
     try {
-      const { error } = await supabase
+      await supabase
         .from('quizzes')
-        .update({ 
-          score: correctCount,
-          passed: isPassed 
-        })
+        .update({ score: correctCount, passed: isPassed })
         .eq('id', quizId);
-
-      if (error) {
-        console.error("Erreur Supabase lors de la sauvegarde :", error.message);
-      } else {
-        console.log("✅ Résultat sauvegardé :", { score: correctCount, passed: isPassed });
-      }
     } catch (err) {
-      console.error("Erreur lors de la sauvegarde du score :", err);
+      console.error("Erreur lors de la sauvegarde :", err);
+    }
+  };
+
+  // Fonction pour générer le PDF du certificat
+  const exportCertificate = async () => {
+    const certificateElement = document.getElementById('certificate-template');
+    if (!certificateElement) return;
+
+    setIsDownloading(true);
+    try {
+      // html2canvas prend une "photo" de notre div cachée
+      const canvas = await html2canvas(certificateElement, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      
+      // On crée un PDF au format A4 Paysage (landscape)
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Certificat_${quiz.title || 'PDF2Quiz'}.pdf`);
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF :", error);
+      alert("Une erreur est survenue lors de la création du certificat.");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -103,19 +129,15 @@ export default function PlayQuizPage() {
     );
   }
 
-  if (!quiz) {
-    return (
-      <div className="max-w-3xl mx-auto text-center py-12">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Quiz introuvable</h2>
-        <Link href="/bibliotheque" className="text-blue-600 hover:underline">Retourner à la bibliothèque</Link>
-      </div>
-    );
-  }
+  if (!quiz) return <div className="text-center py-12">Quiz introuvable</div>;
 
   const questions: Question[] = quiz.questions || [];
+  const finalScore = calculateScore();
+  const finalPercentage = Math.round((finalScore / questions.length) * 100);
+  const isPassed = finalPercentage >= 80;
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
+    <div className="max-w-3xl mx-auto pb-16 relative">
       <div className="mb-6">
         <Link href="/bibliotheque" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition">
           <ArrowLeft size={16} /> Retour à mes quiz
@@ -141,11 +163,8 @@ export default function PlayQuizPage() {
 
                 let optionStyle = "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-800";
                 if (showResults) {
-                  if (isCorrect) {
-                    optionStyle = "border-green-500 bg-green-50 text-green-900 font-medium";
-                  } else if (isSelected && !isCorrect) {
-                    optionStyle = "border-red-300 bg-red-50 text-red-900";
-                  }
+                  if (isCorrect) optionStyle = "border-green-500 bg-green-50 text-green-900 font-medium";
+                  else if (isSelected && !isCorrect) optionStyle = "border-red-300 bg-red-50 text-red-900";
                 } else if (isSelected) {
                   optionStyle = "border-blue-500 bg-blue-50 text-blue-900 font-medium";
                 }
@@ -174,37 +193,97 @@ export default function PlayQuizPage() {
 
         {!showResults ? (
           <div className="flex justify-end pt-4">
-            <button
-              onClick={handleValidate}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition"
-            >
+            <button onClick={handleValidate} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition">
               Valider mes réponses
             </button>
           </div>
         ) : (
-          <div className="bg-gray-900 text-white rounded-2xl p-6 flex items-center justify-between shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-600 rounded-xl text-white">
-                <Award size={24} />
+          <div className="flex flex-col gap-4 mt-6">
+            <div className={`text-white rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between shadow-lg ${isPassed ? 'bg-green-900' : 'bg-gray-900'}`}>
+              <div className="flex items-center gap-4 mb-4 md:mb-0">
+                <div className={`p-3 rounded-xl text-white ${isPassed ? 'bg-green-600' : 'bg-blue-600'}`}>
+                  {isPassed ? <CheckCircle2 size={32} /> : <Award size={32} />}
+                </div>
+                <div>
+                  <h4 className="font-bold text-xl">{isPassed ? "Félicitations, c'est un succès !" : "Résultat final"}</h4>
+                  <p className="text-sm opacity-90 mt-1">
+                    Score : {finalScore} / {questions.length} ({finalPercentage}%)
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-bold text-lg">Résultat final</h4>
-                <p className="text-sm text-gray-400">
-                  Vous avez obtenu {calculateScore()} / {questions.length} bonnes réponses.
-                </p>
+              
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                {isPassed && (
+                  <button
+                    onClick={exportCertificate}
+                    disabled={isDownloading}
+                    className="flex-1 md:flex-none px-4 py-2.5 bg-white text-green-900 text-sm font-bold rounded-lg hover:bg-green-50 transition shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <Download size={18} />
+                    {isDownloading ? "Génération..." : "Mon Certificat"}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setShowResults(false); setSelectedAnswers({}); }}
+                  className="flex-1 md:flex-none px-4 py-2.5 bg-black/30 hover:bg-black/50 text-white text-sm font-medium rounded-lg transition border border-white/20 flex items-center justify-center gap-2"
+                >
+                  <RotateCcw size={16} /> Rejouer
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setShowResults(false);
-                setSelectedAnswers({});
-              }}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition border border-gray-700 flex items-center gap-2"
-            >
-              <RotateCcw size={16} /> Recommencer
-            </button>
           </div>
         )}
+      </div>
+
+      {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
+      <div className="absolute left-[-9999px] top-[-9999px]">
+        <div 
+          id="certificate-template" 
+          className="w-[1123px] h-[794px] bg-white p-12 relative flex flex-col items-center justify-center font-sans text-gray-900"
+          style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', border: '24px solid #2563eb' }}
+        >
+          {/* Cadre intérieur */}
+          <div className="absolute inset-8 border-4 border-blue-600/30 rounded-2xl pointer-events-none"></div>
+
+          {/* Logo / Badge de validation */}
+          <div className="mb-8">
+            <svg className="w-32 h-32 text-green-500 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
+            </svg>
+          </div>
+
+          <h1 className="text-6xl font-black text-blue-900 mb-4 tracking-tight uppercase">Certificat de Réussite</h1>
+          <p className="text-2xl text-gray-600 mb-12">Ce document certifie formellement que</p>
+          
+          <h2 className="text-5xl font-bold text-gray-900 mb-12 pb-4 border-b-2 border-gray-300 px-16">
+            {userName}
+          </h2>
+
+          <p className="text-2xl text-gray-600 mb-6">A complété avec succès l'évaluation :</p>
+          <h3 className="text-4xl font-bold text-blue-700 mb-12 text-center max-w-4xl leading-tight">
+            "{quiz.title || 'Évaluation PDF2Quiz'}"
+          </h3>
+
+          <div className="flex items-center gap-16 mt-8">
+            <div className="text-center">
+              <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
+              <p className="text-4xl font-black text-green-600">{finalPercentage}%</p>
+            </div>
+            <div className="w-px h-16 bg-gray-300"></div>
+            <div className="text-center">
+              <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Date d'obtention</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+
+          {/* Signature / Tampon plateforme */}
+          <div className="absolute bottom-16 right-16 text-right">
+            <p className="text-lg font-bold text-gray-400">Généré et certifié par</p>
+            <p className="text-2xl font-black text-blue-600">PDF2Quiz AI</p>
+          </div>
+        </div>
       </div>
     </div>
   );
