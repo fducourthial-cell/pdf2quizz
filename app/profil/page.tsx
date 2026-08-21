@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import { User, Mail, CreditCard, Activity, Trash2, AlertTriangle, Shield, Check } from 'lucide-react';
 
 export default function ProfilPage() {
@@ -255,6 +256,12 @@ export default function ProfilPage() {
           </div>
         </section>
 
+<div className="mt-8 pt-6 border-t border-gray-200 text-center">
+  <Link href="/confidentialite" className="text-sm text-gray-500 hover:text-gray-800 transition">
+    Consulter la Politique de confidentialité
+  </Link>
+</div>
+        
       </div>
     </div>
   );
