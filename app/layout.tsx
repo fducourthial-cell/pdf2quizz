@@ -3,6 +3,7 @@ import './globals.css';
 import React from 'react';
 import Link from 'next/link';
 import { Plus, FileText, Clock, Trash2, Settings, User } from 'lucide-react';
+import { Home, Folder, Settings, User, Award } from 'lucide-react';
 
 export const metadata = {
   title: 'PDF2Quiz - Création IA',
