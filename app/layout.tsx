@@ -25,8 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <Image 
         src="/icone.png" 
         alt="Logo PDF2Quiz" 
-        width={32} 
-        height={32} 
+        width={40} 
+        height={40} 
         className="rounded-lg"
       />
       
