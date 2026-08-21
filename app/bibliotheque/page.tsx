@@ -14,6 +14,7 @@ interface QuizItem {
   questions: any[];
   score?: number;
   passed?: boolean; 
+  is_trashed?: boolean;
 }
 
 export default function BibliothequePage() {
@@ -28,9 +29,12 @@ export default function BibliothequePage() {
   useEffect(() => {
     async function fetchQuizzes() {
       try {
+        // On récupère uniquement les quiz qui NE SONT PAS dans la corbeille
+        // On utilise is() pour gérer les anciennes lignes où is_trashed est null
         const { data, error } = await supabase
           .from('quizzes')
           .select('*')
+          .or('is_trashed.is.null,is_trashed.eq.false')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -74,18 +78,26 @@ export default function BibliothequePage() {
     }
   };
 
-  // Fonction pour supprimer un quiz
+  // Fonction pour envoyer un quiz à la corbeille (Soft Delete)
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
-    if (!confirm("Voulez-vous vraiment supprimer ce quiz ?")) return;
+    
+    // Le message est plus doux puisqu'on sait qu'on peut récupérer le quiz
+    if (!confirm("Voulez-vous envoyer ce quiz à la corbeille ?")) return;
 
     try {
-      const { error } = await supabase.from('quizzes').delete().eq('id', id);
+      // Au lieu de delete(), on fait un update
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ is_trashed: true })
+        .eq('id', id);
+
       if (error) throw error;
       
+      // On retire le quiz de l'affichage local de la bibliothèque
       setQuizzes(quizzes.filter(q => q.id !== id));
     } catch (err) {
-      console.error("Erreur lors de la suppression :", err);
+      console.error("Erreur lors de l'envoi à la corbeille :", err);
       alert("Erreur lors de la suppression du quiz.");
     }
   };
@@ -156,7 +168,7 @@ export default function BibliothequePage() {
                       <button 
                         onClick={(e) => handleDelete(quiz.id, e)}
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Supprimer"
+                        title="Envoyer à la corbeille"
                       >
                         <Trash2 size={16} />
                       </button>
