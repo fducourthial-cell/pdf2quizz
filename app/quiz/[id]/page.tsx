@@ -283,7 +283,7 @@ export default function PlayQuizPage() {
             {/* Bloc Droite : Signature */}
             <div className="text-right">
               <p className="text-sm font-bold text-gray-400 mb-1">Généré et certifié par</p>
-              <p className="text-3xl font-black text-blue-600 tracking-tight">PDF2Quiz AI</p>
+              <p className="text-3xl font-black text-blue-600 tracking-tight">PDF2Quiz</p>
             </div>
             
           </div>
