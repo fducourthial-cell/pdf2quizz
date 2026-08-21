@@ -2,6 +2,7 @@
 import './globals.css';
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Plus, FileText, Clock, Trash2, Settings, User, Award } from 'lucide-react';
 
 export const metadata = {
@@ -16,14 +17,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
         
         {/* SIDEBAR */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between">
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
-                Q
-              </div>
-              <span className="text-xl font-bold tracking-tight">PDF2Quiz</span>
-            </div>
+       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between">
+  <div className="p-6">
+    <div className="flex items-center gap-2 mb-8">
+      
+      {/* NOUVEAU LOGO */}
+      <Image 
+        src="/icone.png" 
+        alt="Logo PDF2Quiz" 
+        width={32} 
+        height={32} 
+        className="rounded-lg"
+      />
+      
+      <span className="text-xl font-bold tracking-tight">PDF2Quiz</span>
+    </div>
 
             <Link href="/" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors mb-8">
               <Plus size={20} />
