@@ -24,9 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       
       {/* NOUVEAU LOGO */}
       <Image 
-        src="/ban.png" 
+        src="/icone.png" 
         alt="Logo PDF2Quiz" 
-        width={160} 
+        width={80} 
         height={80} 
         className="rounded-lg"
       />
