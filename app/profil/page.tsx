@@ -223,7 +223,7 @@ export default function ProfilPage() {
         <section className="bg-red-50 border border-red-100 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
             <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Shield size={20} /></div>
-            <h2 className="text-xl font-semibold text-red-800">Zone de danger</h2>
+            <h2 className="text-xl font-semibold text-red-800">Gérer mon compte</h2>
           </div>
 
           <div className="space-y-4">
