@@ -214,27 +214,43 @@ export default function NewQuizPage() {
               </button>
             </div>
           ) : (
-            <div className="bg-gray-900 text-white rounded-2xl p-6 flex items-center justify-between shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-600 rounded-xl text-white">
-                  <Award size={24} />
+            <div className={`bg-gray-900 text-white rounded-2xl p-6 shadow-lg border-2 transition-all ${calculateScore() === quizQuestions.length ? 'border-yellow-500' : 'border-gray-800'}`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`p-4 rounded-xl text-white ${calculateScore() === quizQuestions.length ? 'bg-yellow-500' : 'bg-blue-600'}`}>
+                    <Award size={28} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl">Résultat final</h4>
+                    <p className="text-base text-gray-300">
+                      Vous avez obtenu <span className="font-bold text-white">{calculateScore()} / {quizQuestions.length}</span> bonnes réponses.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-lg">Résultat final</h4>
-                  <p className="text-sm text-gray-400">
-                    Vous avez obtenu {calculateScore()} / {quizQuestions.length} bonnes réponses.
-                  </p>
-                </div>
+                
+                <button
+                  onClick={() => {
+                    setShowResults(false);
+                    setSelectedAnswers({});
+                  }}
+                  className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-xl transition border border-gray-700 whitespace-nowrap"
+                >
+                  Recommencer
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setShowResults(false);
-                  setSelectedAnswers({});
-                }}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition border border-gray-700"
-              >
-                Recommencer
-              </button>
+
+              {/* Affichage conditionnel de la Certification si 100% */}
+              {calculateScore() === quizQuestions.length && (
+                <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
+                  <CheckCircle2 className="text-yellow-500 shrink-0" size={24} />
+                  <div>
+                    <h5 className="text-yellow-500 font-bold">Certification validée ! 🏆</h5>
+                    <p className="text-sm text-yellow-500/80 mt-1">
+                      Félicitations, vous avez maîtrisé ce sujet à 100 %. Votre validation est acquise.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
