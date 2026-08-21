@@ -15,32 +15,35 @@ export async function POST(req: Request) {
     const { pdfUrl, settings } = await req.json();
 
     if (!pdfUrl) {
-      return NextResponse.json({ error: 'URL du PDF manquante' }, { status: 400 });
+      return NextResponse.json({ error: 'URL du fichier manquante' }, { status: 400 });
     }
 
-    // 2. Télécharger le PDF depuis l'URL publique Supabase
-    const pdfResponse = await fetch(pdfUrl);
-    if (!pdfResponse.ok) throw new Error('Impossible de télécharger le PDF');
+    // 2. Télécharger le fichier depuis l'URL publique Supabase
+    const fileResponse = await fetch(pdfUrl);
+    if (!fileResponse.ok) throw new Error('Impossible de télécharger le fichier');
     
-    // Convertir le PDF en un format lisible par Gemini (Base64)
-    const arrayBuffer = await pdfResponse.arrayBuffer();
+    // Détection automatique du type de fichier (PDF, PNG, JPEG, etc.)
+    const mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
+
+    // Convertir le fichier en un format lisible par Gemini (Base64)
+    const arrayBuffer = await fileResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Data = buffer.toString('base64');
 
-    const pdfPart = {
+    const filePart = {
       inlineData: {
         data: base64Data,
-        mimeType: 'application/pdf',
+        mimeType: mimeType, // Utilise le vrai type détecté dynamiquement
       },
     };
 
-    // 3. Configurer le modèle Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
+    // 3. Configurer le modèle Gemini (1.5 Flash recommandé pour l'analyse multimodale)
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    // 4. Le Prompt Engineering
+    // 4. Le Prompt Engineering (adapté pour PDF et Images)
     const prompt = `
       Agis comme un concepteur pédagogique expert.
-      Analyse le document PDF fourni et crée un quiz de ${settings.questionCount} questions de type "${settings.type}" avec un niveau de difficulté "${settings.difficulty}".
+      Analyse le document ou l'image fourni(e) et crée un quiz de ${settings.questionCount} questions de type "${settings.type}" avec un niveau de difficulté "${settings.difficulty}".
       
       RÈGLE ABSOLUE : Tu dois renvoyer UNIQUEMENT un objet JSON valide, sans aucun texte avant ou après, sans balises Markdown (\`\`\`json).
       
@@ -56,8 +59,8 @@ export async function POST(req: Request) {
     `;
 
     // 5. Appel à l'API Gemini
-    console.log("Appel à Gemini en cours...");
-    const result = await model.generateContent([prompt, pdfPart]);
+    console.log(`Appel à Gemini en cours... (Type de fichier: ${mimeType})`);
+    const result = await model.generateContent([prompt, filePart]);
     const responseText = result.response.text();
 
     // 6. Nettoyage et parsing du JSON
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
       .from('quizzes')
       .insert([
         { 
-          pdf_url: pdfUrl, 
+          pdf_url: pdfUrl, // La colonne s'appelle toujours pdf_url en base, même si c'est une image
           title: `Quiz (${settings.type.toUpperCase()})`, 
           questions: quizData 
         }
