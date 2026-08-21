@@ -47,6 +47,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </Link>
   </li>
   <li>
+  <Link href="/certificats" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
+    <Award size={18} />
+    Mes Certifications
+  </Link>
+</li>
+  <li>
     <Link href="/corbeille" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
       <Trash2 size={18} />
       Corbeille
@@ -58,12 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     Profil & Paramètres
   </Link>
 </li>
-                 <li>
-  <Link href="/bibliotheque" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 text-gray-700 hover:text-blue-600 transition-colors">
-    <Folder size={18} />
-    Bibliothèque
-  </Link>
-</li>
+                
 </ul>
               </div>
             </nav>
