@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link'; // Import nécessaire pour les liens internes
+import Link from 'next/link'; 
 import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +25,7 @@ export default function NewQuizPage() {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   
-  // NOUVEAU : État pour la politique de confidentialité
+  // État pour la politique de confidentialité
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
 
   // --- ÉTATS DU QUIZ ---
@@ -35,6 +35,28 @@ export default function NewQuizPage() {
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
+
+  // --- NOUVEAUX ÉTATS POUR L'ANIMATION D'ATTENTE ---
+  const [loadingStep, setLoadingStep] = useState(0);
+  const loadingMessages = [
+    "Analyse du document par l'IA...",
+    "Identification des concepts clés...",
+    "Rédaction des questions sur-mesure...",
+    "Génération des explications pédagogiques...",
+    "Finalisation de l'évaluation..."
+  ];
+
+  // Gestion de l'animation des messages d'attente
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    // On ne lance le défilement que si on est dans la phase IA
+    if (isGenerating && uploadStatus === 'AI_PHASE') {
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
+      }, 5000); // Change le message toutes les 5 secondes
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating, uploadStatus]);
 
   // --- VÉRIFICATION DE LA SESSION AU CHARGEMENT ---
   useEffect(() => {
@@ -103,7 +125,7 @@ export default function NewQuizPage() {
 
     try {
       setIsGenerating(true);
-      setUploadStatus('Envoi du fichier vers le cloud...');
+      setUploadStatus('Sécurisation et envoi du fichier...'); // Étape 1 : Upload
       
       const fileExt = file.name.split('.').pop();
       const cleanFileName = `quiz-${Date.now()}.${fileExt}`;
@@ -116,7 +138,9 @@ export default function NewQuizPage() {
 
       const { data: { publicUrl } } = supabase.storage.from('pdfs').getPublicUrl(cleanFileName);
 
-      setUploadStatus('Analyse du fichier par l\'IA (cela peut prendre 30s)...');
+      // Étape 2 : Lancement de la phase IA (déclenche le défilement des messages)
+      setLoadingStep(0);
+      setUploadStatus('AI_PHASE'); 
 
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
@@ -183,7 +207,6 @@ export default function NewQuizPage() {
             </p>
           </div>
 
-          {/* CHECKBOX CONFIDENTIALITÉ */}
           <div className="mb-6 flex items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
             <input 
               type="checkbox" 
@@ -290,14 +313,21 @@ export default function NewQuizPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer un nouveau quiz</h1>
             <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG).</p>
           </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+          >
+            <LogOut size={16} /> Déconnexion
+          </button>
         </header>
 
         {isGenerating ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center justify-center min-h-[400px]">
             <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Génération en cours...</h2>
-            <p className="text-gray-500 text-center max-w-sm">
-              {uploadStatus}
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Génération en cours</h2>
+            {/* AFFICHAGE DU TEXTE DYNAMIQUE */}
+            <p className="text-gray-600 text-center max-w-sm font-medium animate-pulse">
+              {uploadStatus === 'AI_PHASE' ? loadingMessages[loadingStep] : uploadStatus}
             </p>
           </div>
         ) : quizQuestions ? (
