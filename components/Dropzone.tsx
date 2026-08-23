@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
-import { UploadCloud, FileText, X, Image as ImageIcon } from 'lucide-react'; // Ajout de ImageIcon pour les images
+import { UploadCloud, FileText, X, Image as ImageIcon } from 'lucide-react';
 
 interface DropzoneProps {
   onFileAccepted: (file: File) => void;
@@ -28,20 +28,22 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
   }, []);
 
   const validateAndSetFile = (file: File) => {
-    // 1. MODIFICATION ICI : Liste des formats autorisés
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
     
     if (!allowedTypes.includes(file.type)) {
       alert('Erreur : Veuillez déposer un fichier PDF ou une image (PNG, JPG, WEBP).');
       return;
     }
-    // Vérification de la taille (50Mo max)
-    if (file.size > 50 * 1024 * 1024) {
-      alert('Erreur : Le fichier est trop lourd (Max 50Mo).');
+    
+    // NOUVELLE LIMITE : 10 Mo pour sécuriser l'API et éviter les timeouts
+    const MAX_SIZE_MB = 10;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(`Erreur : Le fichier est trop lourd (Maximum ${MAX_SIZE_MB} Mo). Réduisez la taille du document pour garantir une analyse rapide par l'IA.`);
       return;
     }
+    
     setSelectedFile(file);
-    onFileAccepted(file); // Envoie le fichier validé au composant parent (page.tsx)
+    onFileAccepted(file);
   };
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -55,7 +57,6 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
     }
   }, [onFileAccepted]);
 
-  // Permet de cliquer sur la zone pour ouvrir l'explorateur de fichiers
   const handleButtonClick = () => {
     fileInputRef.current?.click();
   };
@@ -67,25 +68,22 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
     }
   };
 
-  // 1. État : Fichier déjà sélectionné
   if (selectedFile) {
     const isImage = selectedFile.type.startsWith('image/');
     
     return (
       <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 flex items-center gap-4">
         <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
-          {/* Affiche une icône différente si c'est une image */}
           {isImage ? <ImageIcon size={24} /> : <FileText size={24} />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm text-gray-900 truncate">{selectedFile.name}</p>
           <p className="text-xs text-gray-500">
-            {/* Affiche dynamiquement l'extension au lieu de forcer "- PDF" */}
             {(selectedFile.size / 1024 / 1024).toFixed(2)} Mo - {selectedFile.name.split('.').pop()?.toUpperCase()}
           </p>
         </div>
         <button 
-          onClick={() => setSelectedFile(null)} // Annuler
+          onClick={() => setSelectedFile(null)}
           className="p-1.5 rounded-full hover:bg-gray-200 text-gray-500 transition"
         >
           <X size={18} />
@@ -94,7 +92,6 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
     );
   }
 
-  // 2. État : Zone d'attente (Drag Active ou Inactive)
   return (
     <div
       onDragOver={handleDragOver}
@@ -111,7 +108,6 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
           : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}
       `}
     >
-      {/* 2. MODIFICATION ICI : On autorise les images dans la fenêtre de sélection */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -128,13 +124,12 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
         Glissez-déposez votre document ou image ici ou <span className="text-blue-600 underline">parcourir</span>
       </h3>
       <p className="text-sm text-gray-500">
-        Formats acceptés : PDF, PNG, JPG, WEBP (Max 50Mo)
+        Formats acceptés : PDF, PNG, JPG, WEBP (Max 10 Mo)
       </p>
 
-      {/* Overlay visuel subtil pendant le drag */}
       {isDragActive && (
         <div className="absolute inset-0 bg-blue-500/5 rounded-2xl flex items-center justify-center">
-          <p className="text-2xl font-bold text-blue-600">Déposez le fichier</p>
+          <p className="text-2xl font-bold text-blue-600 opacity-0">Déposez</p>
         </div>
       )}
     </div>
