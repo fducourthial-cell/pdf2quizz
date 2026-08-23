@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, RotateCcw, Award, ArrowLeft, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, Award, ArrowLeft, Download, Clock } from 'lucide-react';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -27,6 +27,12 @@ export default function PlayQuizPage() {
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // --- NOUVEAUX ÉTATS POUR LE CHRONOMÈTRE ---
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [timerMode, setTimerMode] = useState<'none' | 'auto' | 'custom'>('none');
+  const [customMinutes, setCustomMinutes] = useState<number>(5);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchQuizAndUser() {
@@ -54,6 +60,50 @@ export default function PlayQuizPage() {
 
     fetchQuizAndUser();
   }, [quizId]);
+
+  // --- LOGIQUE DU CHRONOMÈTRE ---
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0 || showResults) return;
+
+    const timerId = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev && prev <= 1) {
+          return 0;
+        }
+        return prev ? prev - 1 : 0;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [timeLeft, showResults]);
+
+  // Déclenchement de la validation automatique à 0
+  useEffect(() => {
+    if (timeLeft === 0 && !showResults) {
+      handleValidate();
+      alert("⏳ Temps écoulé ! Vos réponses ont été validées automatiquement.");
+    }
+  }, [timeLeft]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleStartQuiz = () => {
+    if (!quiz || !quiz.questions) return;
+    
+    if (timerMode === 'auto') {
+      setTimeLeft(quiz.questions.length * 30); // 30s par question
+    } else if (timerMode === 'custom') {
+      setTimeLeft(customMinutes * 60); // Conversion minutes en secondes
+    } else {
+      setTimeLeft(null); // Pas de limite
+    }
+    setQuizStarted(true);
+  };
+  // ------------------------------
 
   const handleSelectOption = (questionIndex: number, option: string) => {
     if (showResults) return;
@@ -83,7 +133,7 @@ export default function PlayQuizPage() {
     const percentage = (correctCount / totalQuestions) * 100;
     const isPassed = percentage >= 80;
 
-        try {
+    try {
       await supabase
         .from('quizzes')
         .update({ score: correctCount, passed: isPassed })
@@ -107,7 +157,7 @@ export default function PlayQuizPage() {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Certificat_${quiz.title || 'PDF2Quiz'}.pdf`);
+      pdf.save(`Certificat_${quiz.title || 'FormaGen'}.pdf`);
     } catch (error) {
       console.error("Erreur lors de la génération du PDF :", error);
       alert("Une erreur est survenue lors de la création du certificat.");
@@ -132,103 +182,183 @@ export default function PlayQuizPage() {
   const isPassed = finalPercentage >= 80;
 
   return (
-    <div className="max-w-3xl mx-auto pb-16 relative">
+    <div className="max-w-3xl mx-auto pb-16 relative pt-8 px-4 sm:px-0">
       <div className="mb-6">
         <Link href="/bibliotheque" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition">
-          <ArrowLeft size={16} /> Retour à mes quiz
+          <ArrowLeft size={16} /> Retour à mes évaluations
         </Link>
       </div>
 
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz.title || "Quiz"}</h1>
-        <p className="text-gray-500">Répondez aux questions ci-dessous et testez vos connaissances.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{quiz.title || "Évaluation professionnelle"}</h1>
+        <p className="text-gray-500">Validation des connaissances et certification.</p>
       </header>
 
-      <div className="space-y-6">
-        {questions.map((q, qIndex) => (
-          <div key={qIndex} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-4 text-base">
-              <span className="text-blue-600 mr-2">Q{qIndex + 1}.</span> {q.question}
-            </h3>
+      {/* 1. ÉCRAN DE CONFIGURATION (Avant de démarrer) */}
+      {!quizStarted ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm text-center">
+          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Configuration de l'évaluation</h2>
+          <p className="text-gray-500 mb-8">Ce test contient {questions.length} questions. Définissez la limite de temps accordée :</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-left">
+            <button 
+              onClick={() => setTimerMode('none')}
+              className={`p-4 rounded-xl border-2 transition ${timerMode === 'none' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+            >
+              <h3 className="font-semibold text-gray-900">Aucune limite</h3>
+              <p className="text-xs text-gray-500 mt-1">L'apprenant prend son temps</p>
+            </button>
 
-            <div className="space-y-2 mb-4">
-              {q.options.map((option, oIndex) => {
-                const isSelected = selectedAnswers[qIndex] === option;
-                const isCorrect = option === q.correctAnswer;
+            <button 
+              onClick={() => setTimerMode('auto')}
+              className={`p-4 rounded-xl border-2 transition ${timerMode === 'auto' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+            >
+              <h3 className="font-semibold text-gray-900">Automatique</h3>
+              <p className="text-xs text-gray-500 mt-1">30s par question ({formatTime(questions.length * 30)})</p>
+            </button>
 
-                let optionStyle = "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-800";
-                if (showResults) {
-                  if (isCorrect) optionStyle = "border-green-500 bg-green-50 text-green-900 font-medium";
-                  else if (isSelected && !isCorrect) optionStyle = "border-red-300 bg-red-50 text-red-900";
-                } else if (isSelected) {
-                  optionStyle = "border-blue-500 bg-blue-50 text-blue-900 font-medium";
-                }
-
-                return (
-                  <button
-                    key={oIndex}
-                    onClick={() => handleSelectOption(qIndex, option)}
-                    className={`w-full text-left p-3.5 rounded-xl border transition-all text-sm flex items-center justify-between ${optionStyle}`}
-                  >
-                    <span>{option}</span>
-                    {showResults && isCorrect && <CheckCircle2 size={18} className="text-green-600" />}
-                    {showResults && isSelected && !isCorrect && <XCircle size={18} className="text-red-500" />}
-                  </button>
-                );
-              })}
+            <div className={`p-4 rounded-xl border-2 transition flex flex-col justify-between ${timerMode === 'custom' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
+              <button onClick={() => setTimerMode('custom')} className="text-left">
+                <h3 className="font-semibold text-gray-900">Personnalisé</h3>
+                <p className="text-xs text-gray-500 mt-1">Durée au choix</p>
+              </button>
+              {timerMode === 'custom' && (
+                <div className="mt-3 flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={customMinutes} 
+                    onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                    className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center outline-none focus:border-blue-500"
+                  />
+                  <span className="text-sm text-gray-600">min</span>
+                </div>
+              )}
             </div>
+          </div>
 
-            {showResults && q.explanation && (
-              <div className="mt-4 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600">
-                <span className="font-semibold text-gray-900">Explication : </span> {q.explanation}
+          <button 
+            onClick={handleStartQuiz}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition"
+          >
+            Démarrer le test
+          </button>
+        </div>
+      ) : (
+        /* 2. LE QUIZ EN LUI-MÊME */
+        <div className="space-y-6">
+          
+          {/* BANDEAU CHRONOMÈTRE STICKY */}
+          <div className="sticky top-4 z-10 bg-white/90 backdrop-blur-md border border-gray-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <h2 className="font-bold text-gray-900">Évaluation en cours</h2>
+              <p className="text-xs text-gray-500">Répondez à toutes les questions</p>
+            </div>
+            {timeLeft !== null && !showResults && (
+              <div className={`px-4 py-2 rounded-lg font-mono font-bold text-lg flex items-center gap-2 transition-colors ${timeLeft <= 60 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-900 text-white'}`}>
+                <Clock size={18} /> {formatTime(timeLeft)}
+              </div>
+            )}
+            {showResults && (
+              <div className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold text-sm">
+                Terminé
               </div>
             )}
           </div>
-        ))}
 
-        {!showResults ? (
-          <div className="flex justify-end pt-4">
-            <button onClick={handleValidate} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition">
-              Valider mes réponses
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 mt-6">
-            <div className={`text-white rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between shadow-lg ${isPassed ? 'bg-green-900' : 'bg-gray-900'}`}>
-              <div className="flex items-center gap-4 mb-4 md:mb-0">
-                <div className={`p-3 rounded-xl text-white ${isPassed ? 'bg-green-600' : 'bg-blue-600'}`}>
-                  {isPassed ? <CheckCircle2 size={32} /> : <Award size={32} />}
-                </div>
-                <div>
-                  <h4 className="font-bold text-xl">{isPassed ? "Félicitations, c'est un succès !" : "Résultat final"}</h4>
-                  <p className="text-sm opacity-90 mt-1">
-                    Score : {finalScore} / {questions.length} ({finalPercentage}%)
-                  </p>
-                </div>
+          {/* LISTE DES QUESTIONS */}
+          {questions.map((q, qIndex) => (
+            <div key={qIndex} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-4 text-base">
+                <span className="text-blue-600 mr-2">Q{qIndex + 1}.</span> {q.question}
+              </h3>
+
+              <div className="space-y-2 mb-4">
+                {q.options.map((option, oIndex) => {
+                  const isSelected = selectedAnswers[qIndex] === option;
+                  const isCorrect = option === q.correctAnswer;
+
+                  let optionStyle = "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-800";
+                  if (showResults) {
+                    if (isCorrect) optionStyle = "border-green-500 bg-green-50 text-green-900 font-medium";
+                    else if (isSelected && !isCorrect) optionStyle = "border-red-300 bg-red-50 text-red-900";
+                  } else if (isSelected) {
+                    optionStyle = "border-blue-500 bg-blue-50 text-blue-900 font-medium";
+                  }
+
+                  return (
+                    <button
+                      key={oIndex}
+                      onClick={() => handleSelectOption(qIndex, option)}
+                      className={`w-full text-left p-3.5 rounded-xl border transition-all text-sm flex items-center justify-between ${optionStyle}`}
+                    >
+                      <span>{option}</span>
+                      {showResults && isCorrect && <CheckCircle2 size={18} className="text-green-600" />}
+                      {showResults && isSelected && !isCorrect && <XCircle size={18} className="text-red-500" />}
+                    </button>
+                  );
+                })}
               </div>
-              
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                {isPassed && (
+
+              {showResults && q.explanation && (
+                <div className="mt-4 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600">
+                  <span className="font-semibold text-gray-900">Explication : </span> {q.explanation}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {!showResults ? (
+            <div className="flex justify-end pt-4">
+              <button onClick={handleValidate} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition">
+                Valider mes réponses
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 mt-6">
+              <div className={`text-white rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between shadow-lg ${isPassed ? 'bg-green-900' : 'bg-gray-900'}`}>
+                <div className="flex items-center gap-4 mb-4 md:mb-0">
+                  <div className={`p-3 rounded-xl text-white ${isPassed ? 'bg-green-600' : 'bg-blue-600'}`}>
+                    {isPassed ? <CheckCircle2 size={32} /> : <Award size={32} />}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl">{isPassed ? "Félicitations, c'est un succès !" : "Résultat final"}</h4>
+                    <p className="text-sm opacity-90 mt-1">
+                      Score : {finalScore} / {questions.length} ({finalPercentage}%)
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  {isPassed && (
+                    <button
+                      onClick={exportCertificate}
+                      disabled={isDownloading}
+                      className="flex-1 md:flex-none px-4 py-2.5 bg-white text-green-900 text-sm font-bold rounded-lg hover:bg-green-50 transition shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Download size={18} />
+                      {isDownloading ? "Génération..." : "Mon Certificat"}
+                    </button>
+                  )}
                   <button
-                    onClick={exportCertificate}
-                    disabled={isDownloading}
-                    className="flex-1 md:flex-none px-4 py-2.5 bg-white text-green-900 text-sm font-bold rounded-lg hover:bg-green-50 transition shadow-sm flex items-center justify-center gap-2"
+                    onClick={() => { 
+                      setShowResults(false); 
+                      setSelectedAnswers({}); 
+                      setQuizStarted(false); // On retourne à l'écran de config du chrono
+                    }}
+                    className="flex-1 md:flex-none px-4 py-2.5 bg-black/30 hover:bg-black/50 text-white text-sm font-medium rounded-lg transition border border-white/20 flex items-center justify-center gap-2"
                   >
-                    <Download size={18} />
-                    {isDownloading ? "Génération..." : "Mon Certificat"}
+                    <RotateCcw size={16} /> Rejouer
                   </button>
-                )}
-                <button
-                  onClick={() => { setShowResults(false); setSelectedAnswers({}); }}
-                  className="flex-1 md:flex-none px-4 py-2.5 bg-black/30 hover:bg-black/50 text-white text-sm font-medium rounded-lg transition border border-white/20 flex items-center justify-center gap-2"
-                >
-                  <RotateCcw size={16} /> Rejouer
-                </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* MODÈLE CACHÉ DU CERTIFICAT (Généré pour le PDF) */}
       <div className="absolute left-[-9999px] top-[-9999px]">
@@ -240,7 +370,7 @@ export default function PlayQuizPage() {
           {/* Cadre intérieur */}
           <div className="absolute inset-8 border-4 border-blue-600/30 rounded-2xl pointer-events-none"></div>
 
-          {/* Contenu principal (légèrement remonté pour laisser la place au footer) */}
+          {/* Contenu principal */}
           <div className="flex flex-col items-center justify-center w-full mt-[-60px] px-24 text-center">
             {/* Logo / Badge de validation */}
             <div className="mb-6">
@@ -258,14 +388,12 @@ export default function PlayQuizPage() {
 
             <p className="text-xl text-gray-600 mb-4">A complété avec succès l'évaluation :</p>
             <h3 className="text-4xl font-bold text-blue-700 max-w-4xl leading-tight">
-              "{quiz.title || 'Évaluation PDF2Quiz'}"
+              "{quiz.title || 'Évaluation FormaGen'}"
             </h3>
           </div>
 
-          {/* Footer parfaitement aligné en bas du cadre */}
+          {/* Footer */}
           <div className="absolute bottom-20 left-24 right-24 flex justify-between items-end">
-            
-            {/* Bloc Gauche : Score et Date */}
             <div className="flex items-center gap-12">
               <div className="text-left">
                 <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
@@ -280,10 +408,9 @@ export default function PlayQuizPage() {
               </div>
             </div>
 
-            {/* Bloc Droite : Signature */}
             <div className="text-right">
               <p className="text-sm font-bold text-gray-400 mb-1">Généré et certifié par</p>
-              <p className="text-3xl font-black text-blue-600 tracking-tight">PDF2Quiz</p>
+              <p className="text-3xl font-black text-blue-600 tracking-tight">FormaGen</p>
             </div>
             
           </div>
