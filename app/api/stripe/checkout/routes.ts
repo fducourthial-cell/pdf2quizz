@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     // 2. On récupère l'URL du site (pour que Stripe sache où renvoyer le client après le paiement)
     // En production, Vercel fournit l'URL. En test local, c'est localhost.
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'https://ton-site.vercel.app';
+    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'https://pdf2quizz.vercel.app/';
 
     // 3. On crée la session de paiement Stripe (Checkout Session)
     const session = await stripe.checkout.sessions.create({
