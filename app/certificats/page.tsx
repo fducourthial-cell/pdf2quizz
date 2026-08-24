@@ -84,7 +84,7 @@ export default function CertificatsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-16">
+    <div className="max-w-5xl w-full px-4 sm:px-6 md:px-8 mx-auto pb-16 pt-8 min-h-screen flex flex-col">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
           <Award className="text-yellow-500" size={32} />
