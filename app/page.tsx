@@ -138,27 +138,32 @@ export default function NewQuizPage() {
     if (!file) return;
 
     try {
-      // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE ---
+     // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE (Via la table Quotas) ---
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Vous devez être connecté.");
 
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
+      // On récupère le mois actuel au format "YYYY-MM" (ex: "2026-08")
+      const currentMonth = new Date().toISOString().slice(0, 7);
 
-      const { count, error: countError } = await supabase
-        .from('quizzes')
-        .select('*', { count: 'exact', head: true })
+      const { data: quotaData, error: quotaError } = await supabase
+        .from('user_quotas')
+        .select('usage_count')
         .eq('user_id', user.id)
-        .gte('created_at', startOfMonth.toISOString());
+        .eq('period', currentMonth)
+        .single();
 
-      if (countError) throw new Error("Impossible de vérifier votre quota mensuel.");
+      // Si Supabase ne trouve pas la ligne, c'est que l'utilisateur est à 0 quiz ce mois-ci,
+      // l'erreur "PGRST116" est normale dans ce cas, donc on l'ignore.
+      if (quotaError && quotaError.code !== 'PGRST116') {
+        throw new Error("Impossible de vérifier votre quota mensuel.");
+      }
 
-      if (count !== null && count >= 1) {
-        alert("🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite de ce mois-ci. Passez à la version Premium pour générer des évaluations en illimité !");
+      // Si la ligne existe et que le compteur est à 1 ou plus, on bloque !
+      if (quotaData && quotaData.usage_count >= 1) {
+        alert("🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite pour ce mois-ci. Passez à la version Premium pour un accès illimité !");
         return; 
       }
-      // ---------------------------------------------
+      // ----------------------------------------------------------------------
 
       setIsGenerating(true);
       setUploadStatus('Sécurisation et envoi du fichier...'); 
