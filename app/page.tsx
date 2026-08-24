@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link'; 
+import AdBanner from '@/components/AdBanner';
 import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
 import { supabase } from '@/lib/supabase';
@@ -16,13 +17,16 @@ interface Question {
 }
 
 export default function NewQuizPage() {
-  // --- ÉTATS D'AUTHENTIFICATION ---
+  // --- ÉTATS D'AUTHENTIFICATION & PREMIUM ---
   const [session, setSession] = useState<any>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  
+  // L'état Premium bien placé à l'intérieur du composant !
+  const [isPremium, setIsPremium] = useState(false);
 
   // --- ÉTATS DU QUIZ ---
   const [file, setFile] = useState<File | null>(null);
@@ -43,6 +47,25 @@ export default function NewQuizPage() {
     "Génération des explications pédagogiques...",
     "Finalisation de l'évaluation..."
   ];
+
+  // --- VÉRIFICATION DU STATUT PREMIUM ---
+  useEffect(() => {
+    async function checkPremium() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('subscriptions')
+          .select('is_premium')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data && data.is_premium) {
+          setIsPremium(true);
+        }
+      }
+    }
+    checkPremium();
+  }, []);
 
   // --- GESTION DU CHRONOMÈTRE ---
   useEffect(() => {
@@ -138,11 +161,9 @@ export default function NewQuizPage() {
     if (!file) return;
 
     try {
-     // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE (Via la table Quotas) ---
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Vous devez être connecté.");
 
-      // On récupère le mois actuel au format "YYYY-MM" (ex: "2026-08")
       const currentMonth = new Date().toISOString().slice(0, 7);
 
       const { data: quotaData, error: quotaError } = await supabase
@@ -152,18 +173,14 @@ export default function NewQuizPage() {
         .eq('period', currentMonth)
         .single();
 
-      // Si Supabase ne trouve pas la ligne, c'est que l'utilisateur est à 0 quiz ce mois-ci,
-      // l'erreur "PGRST116" est normale dans ce cas, donc on l'ignore.
       if (quotaError && quotaError.code !== 'PGRST116') {
         throw new Error("Impossible de vérifier votre quota mensuel.");
       }
 
-      // Si la ligne existe et que le compteur est à 1 ou plus, on bloque !
-      if (quotaData && quotaData.usage_count >= 1) {
-        alert("🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite pour ce mois-ci. Passez à la version Premium pour un accès illimité !");
+      if (quotaData && quotaData.usage_count >= (isPremium ? 20 : 1)) {
+        alert(isPremium ? "🔒 Vous avez atteint la limite Premium de 20 quiz ce mois-ci." : "🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite pour ce mois-ci. Passez à la version Premium pour un accès illimité !");
         return; 
       }
-      // ----------------------------------------------------------------------
 
       setIsGenerating(true);
       setUploadStatus('Sécurisation et envoi du fichier...'); 
@@ -182,7 +199,6 @@ export default function NewQuizPage() {
       setLoadingStep(0);
       setUploadStatus('AI_PHASE'); 
 
-      // Appel API avec le userId !
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,7 +212,6 @@ export default function NewQuizPage() {
       const data = await apiResponse.json();
       if (!apiResponse.ok) throw new Error(data.error || 'Erreur lors de la génération du quiz');
 
-      // --- LE QUIZ EST VALIDÉ ---
       setQuizQuestions(data.quiz);
       
       if (settings.timerMode === 'auto') {
@@ -304,11 +319,17 @@ export default function NewQuizPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer une nouvelle évaluation</h1>
             <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG).</p>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-            <LogOut size={16} /> Déconnexion
-          </button>
         </header>
 
+        {/* ZONE DE PUB */}
+        {!isPremium && (
+          <div className="w-full max-w-3xl mx-auto mb-6 bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+            <span className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Publicité</span>
+            {/* Pense bien à remplacer 1234567890 par ton vrai numéro de bloc Google Adsense */}
+            <AdBanner dataAdSlot="1234567890" />
+          </div>
+        )}
+        
         {isGenerating ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center justify-center min-h-[400px]">
             <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6"></div>
