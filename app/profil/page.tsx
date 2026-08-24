@@ -10,6 +10,7 @@ export default function ProfilPage() {
   const [loading, setLoading] = useState(true);
   
   // États des infos utilisateur
+  const [userId, setUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('Utilisateur PDF2Quiz');
   const [email, setEmail] = useState('utilisateur@email.com');
   const [isSaving, setIsSaving] = useState(false);
@@ -17,30 +18,32 @@ export default function ProfilPage() {
 
   // État de la consommation
   const [quizCount, setQuizCount] = useState(0);
-  const QUIZ_LIMIT = 20;
+  const QUIZ_LIMIT = 1; // Passage à 1 pour le forfait gratuit
 
   useEffect(() => {
     async function fetchUserData() {
       try {
-        // 1. Récupérer les infos de l'utilisateur connecté (si tu as mis en place l'Auth Supabase)
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          setUserId(user.id);
           setEmail(user.email || '');
           setDisplayName(user.user_metadata?.full_name || 'Utilisateur PDF2Quiz');
-        }
 
-        // 2. Compter le nombre de quiz générés ce mois-ci
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+          // --- NOUVELLE MÉTHODE DE LECTURE DU QUOTA ---
+          const currentMonth = new Date().toISOString().slice(0, 7); // ex: "2026-08"
 
-        const { count, error } = await supabase
-          .from('quizzes')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', startOfMonth.toISOString());
+          const { data: quotaData, error } = await supabase
+            .from('user_quotas')
+            .select('usage_count')
+            .eq('user_id', user.id)
+            .eq('period', currentMonth)
+            .single();
 
-        if (!error && count !== null) {
-          setQuizCount(count);
+          if (!error && quotaData) {
+            setQuizCount(quotaData.usage_count);
+          } else {
+            setQuizCount(0); // Si aucune ligne, c'est qu'il n'a encore rien consommé
+          }
         }
       } catch (err) {
         console.error("Erreur lors du chargement du profil :", err);
@@ -57,7 +60,6 @@ export default function ProfilPage() {
     setIsSaving(true);
     
     try {
-      // Mise à jour dans Supabase Auth
       const { error } = await supabase.auth.updateUser({
         email: email,
         data: { full_name: displayName }
@@ -76,14 +78,19 @@ export default function ProfilPage() {
   };
 
   const handleEmptyLibrary = async () => {
-    if (!confirm("⚠️ Attention : Voulez-vous vraiment supprimer TOUS vos quiz ? Cette action est irréversible.")) return;
+    if (!userId) return;
+    if (!confirm("⚠️ Attention : Voulez-vous vraiment vider votre bibliothèque ?")) return;
 
     try {
-      // Pour supprimer toutes les lignes, on utilise un filtre qui matche tout
-      const { error } = await supabase.from('quizzes').delete().not('id', 'is', null);
+      // On utilise désormais le Soft Delete pour vider la bibliothèque
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ is_trashed: true })
+        .eq('user_id', userId); // Sécurité absolue : cible uniquement cet utilisateur
+        
       if (error) throw error;
       
-      setQuizCount(0);
+      // Note : On ne remet PAS le quizCount à 0 ici, car on utilise le système de quotas !
       alert("Votre bibliothèque a été vidée avec succès.");
     } catch (err) {
       console.error("Erreur lors du vidage de la bibliothèque :", err);
@@ -92,14 +99,15 @@ export default function ProfilPage() {
   };
 
   const handleDeleteAccount = async () => {
+    if (!userId) return;
     const confirmWord = prompt("Pour confirmer la suppression définitive de votre compte, tapez 'SUPPRIMER' :");
     if (confirmWord !== 'SUPPRIMER') return;
 
     try {
-      // Étape 1 : Vider les données de l'utilisateur
-      await supabase.from('quizzes').delete().not('id', 'is', null);
+      // Suppression Hard Delete de toutes les données liées à l'utilisateur
+      await supabase.from('quizzes').delete().eq('user_id', userId);
+      await supabase.from('user_quotas').delete().eq('user_id', userId);
       
-      // Étape 2 : Déconnexion (La suppression réelle du user auth nécessite une Edge Function côté serveur pour des raisons de sécurité, mais le front gère l'UI)
       await supabase.auth.signOut();
       alert("Votre compte et toutes vos données ont été supprimés.");
       window.location.href = '/';
@@ -123,7 +131,7 @@ export default function ProfilPage() {
   if (progressPercentage >= 100) progressColor = "bg-red-600";
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
+    <div className="max-w-3xl mx-auto pb-16 pt-8 px-4">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Mon Profil</h1>
         <p className="text-gray-500">Gérez vos informations, votre abonnement et vos données.</p>
@@ -213,8 +221,8 @@ export default function ProfilPage() {
               
               <p className="text-xs text-gray-500 mt-3 leading-relaxed">
                 {quizCount >= QUIZ_LIMIT 
-                  ? "Vous avez atteint votre limite mensuelle. Passez au plan Pro pour continuer." 
-                  : `Il vous reste ${QUIZ_LIMIT - quizCount} générations de quiz avant le mois prochain.`}
+                  ? "Vous avez atteint votre limite mensuelle. Passez au plan Premium pour continuer." 
+                  : `Il vous reste ${QUIZ_LIMIT - quizCount} génération(s) avant le mois prochain.`}
               </p>
             </div>
           </div>
@@ -231,7 +239,7 @@ export default function ProfilPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-red-100">
               <div>
                 <h3 className="font-semibold text-gray-900">Vider ma bibliothèque</h3>
-                <p className="text-sm text-gray-500">Supprime définitivement tous les quiz que vous avez générés.</p>
+                <p className="text-sm text-gray-500">Cache définitivement tous les quiz que vous avez générés.</p>
               </div>
               <button 
                 onClick={handleEmptyLibrary}
@@ -256,11 +264,11 @@ export default function ProfilPage() {
           </div>
         </section>
 
-<div className="mt-8 pt-6 border-t border-gray-200 text-center">
-  <Link href="/confidentialite" className="text-sm text-gray-500 hover:text-gray-800 transition">
-    Consulter la Politique de confidentialité
-  </Link>
-</div>
+        <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+          <Link href="/confidentialite" className="text-sm text-gray-500 hover:text-gray-800 transition">
+            Consulter la Politique de confidentialité
+          </Link>
+        </div>
         
       </div>
     </div>
