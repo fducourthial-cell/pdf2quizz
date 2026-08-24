@@ -36,7 +36,7 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
     }
     
     // NOUVELLE LIMITE : 10 Mo pour sécuriser l'API et éviter les timeouts
-    const MAX_SIZE_MB = 10;
+    const MAX_SIZE_MB = 50;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       alert(`Erreur : Le fichier est trop lourd (Maximum ${MAX_SIZE_MB} Mo). Réduisez la taille du document pour garantir une analyse rapide par l'IA.`);
       return;
