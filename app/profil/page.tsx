@@ -16,11 +16,10 @@ export default function ProfilPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // --- NOUVEAU : GESTION DE L'ABONNEMENT ---
-  // Plus tard, cette info viendra de Supabase (ex: user.user_metadata.is_premium)
+  // --- VRAIE GESTION DE L'ABONNEMENT ---
   const [isPremium, setIsPremium] = useState(false); 
   
-  // La limite change dynamiquement selon le statut de l'utilisateur !
+  // La limite change dynamiquement selon le statut réel de l'utilisateur !
   const QUIZ_LIMIT = isPremium ? 20 : 1; 
   const [quizCount, setQuizCount] = useState(0);
 
@@ -33,12 +32,18 @@ export default function ProfilPage() {
           setEmail(user.email || '');
           setDisplayName(user.user_metadata?.full_name || 'Utilisateur PDF2Quiz');
           
-          // Simulation : On lit le statut premium depuis les métadonnées de l'utilisateur
-          // (À remplacer par la vraie logique Stripe plus tard)
-          if (user.user_metadata?.is_premium) {
+          // 1. On interroge la vraie table "subscriptions" pour vérifier le statut Premium
+          const { data: subData } = await supabase
+            .from('subscriptions')
+            .select('is_premium')
+            .eq('user_id', user.id)
+            .single();
+
+          if (subData && subData.is_premium) {
             setIsPremium(true);
           }
 
+          // 2. On récupère la consommation du mois en cours
           const currentMonth = new Date().toISOString().slice(0, 7);
 
           const { data: quotaData, error } = await supabase
@@ -65,7 +70,6 @@ export default function ProfilPage() {
   }, []);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
-    // ... (Code inchangé)
     e.preventDefault();
     setIsSaving(true);
     try {
@@ -84,7 +88,6 @@ export default function ProfilPage() {
   };
 
   const handleEmptyLibrary = async () => {
-    // ... (Code inchangé)
     if (!userId || !confirm("⚠️ Voulez-vous vraiment vider votre bibliothèque ?")) return;
     try {
       const { error } = await supabase.from('quizzes').update({ is_trashed: true }).eq('user_id', userId);
@@ -96,13 +99,13 @@ export default function ProfilPage() {
   };
 
   const handleDeleteAccount = async () => {
-    // ... (Code inchangé)
     if (!userId) return;
     const confirmWord = prompt("Tapez 'SUPPRIMER' :");
     if (confirmWord !== 'SUPPRIMER') return;
     try {
       await supabase.from('quizzes').delete().eq('user_id', userId);
       await supabase.from('user_quotas').delete().eq('user_id', userId);
+      await supabase.from('subscriptions').delete().eq('user_id', userId);
       await supabase.auth.signOut();
       window.location.href = '/';
     } catch (err) {
@@ -110,13 +113,12 @@ export default function ProfilPage() {
     }
   };
 
- // --- FONCTION POUR LE PAIEMENT STRIPE ---
-const handleManageSubscription = async () => {
+  // --- FONCTION POUR LE PAIEMENT STRIPE ---
+  const handleManageSubscription = async () => {
     if (isPremium) {
-      alert("Redirection vers le Portail Client Stripe...");
+      alert("Redirection vers le Portail Client Stripe... (Tu pourras y ajouter le portail Stripe plus tard si besoin)");
     } else {
       try {
-        // On récupère la session active de l'utilisateur dans le navigateur
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
@@ -128,7 +130,6 @@ const handleManageSubscription = async () => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            // On transmet le jeton d'authentification dans les en-têtes
             'Authorization': `Bearer ${session.access_token}`
           },
         });
@@ -147,6 +148,14 @@ const handleManageSubscription = async () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   const progressPercentage = Math.min((quizCount / QUIZ_LIMIT) * 100, 100);
   let progressColor = "bg-blue-600";
   if (progressPercentage >= 80) progressColor = "bg-orange-500";
@@ -161,22 +170,11 @@ const handleManageSubscription = async () => {
 
       <div className="space-y-8">
         
-        {/* ... (BLOC 1 : Informations personnelles inchangé) ... */}
+        {/* BLOC 1 : Informations personnelles */}
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><User size={20} /></div>
-              <h2 className="text-xl font-semibold text-gray-800">Informations personnelles</h2>
-            </div>
-            
-            {/* BOUTON TEMPORAIRE POUR TESTER L'UI */}
-            <button 
-              onClick={() => setIsPremium(!isPremium)}
-              className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-gray-600 transition"
-            >
-              Mode Dev : {isPremium ? "Désactiver Premium" : "Activer Premium"}
-            </button>
-
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><User size={20} /></div>
+            <h2 className="text-xl font-semibold text-gray-800">Informations personnelles</h2>
           </div>
 
           <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -204,7 +202,7 @@ const handleManageSubscription = async () => {
           </form>
         </section>
 
-        {/* BLOC 2 : Abonnement & Consommation (MODIFIÉ) */}
+        {/* BLOC 2 : Abonnement & Consommation (Connecté à Supabase/Stripe) */}
         <section className={`border rounded-2xl p-6 shadow-sm transition-colors ${isPremium ? 'bg-amber-50/30 border-amber-200' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
             <div className={`p-2 rounded-lg ${isPremium ? 'bg-amber-100 text-amber-600' : 'bg-purple-50 text-purple-600'}`}>
@@ -261,7 +259,7 @@ const handleManageSubscription = async () => {
           </div>
         </section>
 
-        {/* ... (BLOC 3 : Zone de danger inchangé) ... */}
+        {/* BLOC 3 : Zone de danger */}
         <section className="bg-red-50 border border-red-100 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-200/50">
             <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Shield size={20} /></div>
