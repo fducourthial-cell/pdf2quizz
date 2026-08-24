@@ -3,13 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 
-// Désactivation du parsing body automatique de Next.js pour Stripe
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-06-20',
 });
@@ -21,8 +14,6 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    // Si tu testes en local, tu peux récupérer le secret du webhook CLI. 
-    // En production sur Vercel, on traite l'événement directement.
     event = stripe.webhooks.constructEvent(
       body,
       signature,
@@ -37,11 +28,10 @@ export async function POST(req: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    const userId = session.client_reference_id; // L'ID Supabase qu'on avait transmis !
+    const userId = session.client_reference_id;
     const customerId = session.customer as string;
 
     if (userId) {
-      // On met à jour la table "subscriptions" dans Supabase pour le passer en Premium
       const { error } = await supabase
         .from('subscriptions')
         .upsert([
