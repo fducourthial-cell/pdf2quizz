@@ -124,7 +124,7 @@ export default function Dropzone({ onFileAccepted }: DropzoneProps) {
         Glissez-déposez votre document ou image ici ou <span className="text-blue-600 underline">parcourir</span>
       </h3>
       <p className="text-sm text-gray-500">
-        Formats acceptés : PDF, PNG, JPG, WEBP (Max 10 Mo)
+        Formats acceptés : PDF, PNG, JPG, WEBP (Max 50 Mo)
       </p>
 
       {isDragActive && (
