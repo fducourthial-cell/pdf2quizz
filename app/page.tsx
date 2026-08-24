@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle2, XCircle, RotateCcw, Award, LogOut, Mail, Lock, Clock } from 'lucide-react'; // Ajout de Clock
+import { CheckCircle2, XCircle, RotateCcw, Award, LogOut, Mail, Lock, Clock } from 'lucide-react';
 
 interface Question {
   question: string;
@@ -32,9 +32,9 @@ export default function NewQuizPage() {
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
 
-  // --- NOUVEAUX ÉTATS : ANIMATION & CHRONOMÈTRE ---
+  // --- ÉTATS : ANIMATION & CHRONOMÈTRE ---
   const [loadingStep, setLoadingStep] = useState(0);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null); // Le temps restant en secondes
+  const [timeLeft, setTimeLeft] = useState<number | null>(null); 
   
   const loadingMessages = [
     "Analyse du document par l'IA...",
@@ -44,15 +44,14 @@ export default function NewQuizPage() {
     "Finalisation de l'évaluation..."
   ];
 
-  // --- GESTION DU CHRONOMÈTRE (Décompte et validation auto) ---
+  // --- GESTION DU CHRONOMÈTRE ---
   useEffect(() => {
-    // Si pas de temps défini, ou temps à 0, ou quiz déjà validé = on ne fait rien
     if (timeLeft === null || timeLeft <= 0 || showResults) return;
 
     const timerId = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev && prev <= 1) {
-          setShowResults(true); // Le temps est écoulé : Validation automatique !
+          setShowResults(true); 
           alert("⏳ Temps écoulé ! Vos réponses ont été validées automatiquement.");
           return 0;
         }
@@ -60,10 +59,9 @@ export default function NewQuizPage() {
       });
     }, 1000);
 
-    return () => clearInterval(timerId); // Nettoyage
+    return () => clearInterval(timerId);
   }, [timeLeft, showResults]);
 
-  // Convertit "130" secondes en "02:10"
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
@@ -133,39 +131,35 @@ export default function NewQuizPage() {
     setQuizQuestions(null);
     setSelectedAnswers({});
     setShowResults(false);
-    setTimeLeft(null); // On reset le chrono
+    setTimeLeft(null); 
   };
 
   const handleGenerateQuiz = async (settings: QuizConfig) => {
     if (!file) return;
 
-try {
-      // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE (1 Quiz / mois) ---
+    try {
+      // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE ---
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Vous devez être connecté.");
 
-      // Obtenir la date du 1er jour du mois en cours
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
-      // Compter combien de quiz cet utilisateur a dans la base depuis le début du mois
       const { count, error: countError } = await supabase
-        .from('quizzes') // Assure-toi que c'est bien le nom de ta table
+        .from('quizzes')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id) // Assure-toi que ta colonne s'appelle bien user_id
+        .eq('user_id', user.id)
         .gte('created_at', startOfMonth.toISOString());
 
       if (countError) throw new Error("Impossible de vérifier votre quota mensuel.");
 
-      // Si le compteur est supérieur ou égal à 1, on bloque !
       if (count !== null && count >= 1) {
         alert("🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite de ce mois-ci. Passez à la version Premium pour générer des évaluations en illimité !");
-        return; // Stoppe la fonction ici, on n'appelle pas l'IA.
+        return; 
       }
+      // ---------------------------------------------
 
-    
-    try {
       setIsGenerating(true);
       setUploadStatus('Sécurisation et envoi du fichier...'); 
       
@@ -183,10 +177,15 @@ try {
       setLoadingStep(0);
       setUploadStatus('AI_PHASE'); 
 
+      // Appel API avec le userId !
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfUrl: publicUrl, settings: settings }),
+        body: JSON.stringify({ 
+          pdfUrl: publicUrl, 
+          settings: settings,
+          userId: user.id
+        }),
       });
 
       const data = await apiResponse.json();
@@ -195,7 +194,6 @@ try {
       // --- LE QUIZ EST VALIDÉ ---
       setQuizQuestions(data.quiz);
       
-      // Initialisation du chrono depuis les paramètres
       if (settings.timerMode === 'auto') {
         setTimeLeft(settings.questionCount * 30);
       } else if (settings.timerMode === 'custom') {
@@ -232,7 +230,7 @@ try {
     setQuizQuestions(null);
     setSelectedAnswers({});
     setShowResults(false);
-    setTimeLeft(null); // On reset le chrono
+    setTimeLeft(null); 
   };
 
   // ==========================================
@@ -254,7 +252,6 @@ try {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h1>
             <p className="text-gray-500 text-sm">Connectez-vous pour générer vos évaluations sur-mesure.</p>
           </div>
-          {/* ... (Formulaire de connexion inchangé) ... */}
           <div className="mb-6 flex items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
             <input type="checkbox" id="privacy" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)} className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer" />
             <label htmlFor="privacy" className="ml-3 text-sm text-gray-600 cursor-pointer">
@@ -302,6 +299,9 @@ try {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer une nouvelle évaluation</h1>
             <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG).</p>
           </div>
+          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+            <LogOut size={16} /> Déconnexion
+          </button>
         </header>
 
         {isGenerating ? (
@@ -315,7 +315,6 @@ try {
         ) : quizQuestions ? (
           <div className="space-y-6">
             
-            {/* --- NOUVEAU : LE BANDEAU CHRONOMÈTRE INTÉGRÉ --- */}
             <div className="sticky top-4 z-10 bg-white/90 backdrop-blur-md border border-gray-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
               <div>
                 <h2 className="font-bold text-gray-900">Évaluation en cours</h2>
