@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
     const quizData = JSON.parse(cleanedText);
 
     // MODIF : On vérifie que userId est bien présent pour éviter une erreur en base
+   // 7. Enregistrement du quiz
     if (userId) {
       const { error: dbError } = await supabase
         .from('quizzes')
@@ -68,16 +69,41 @@ export async function POST(req: NextRequest) {
           { 
             user_id: userId, 
             pdf_url: pdfUrl, 
-            // Sécurité si settings.type est vide/indéfini :
             title: `Quiz (${settings?.type?.toUpperCase() || 'QCM'})`, 
             questions: quizData 
           }
         ]);
 
       if (dbError) {
-        console.error("Erreur d'enregistrement Supabase :", dbError.message);
+        console.error("Erreur d'enregistrement Supabase (quizzes) :", dbError.message);
       } else {
         console.log("✅ Quiz enregistré en base avec succès !");
+        
+        // --- NOUVEAU : MISE À JOUR DU QUOTA MENSUEL ---
+        // On génère la période actuelle (ex: "2026-08")
+        const currentMonth = new Date().toISOString().slice(0, 7); 
+
+        // On regarde si l'utilisateur a déjà une ligne pour ce mois
+        const { data: existingQuota } = await supabase
+          .from('user_quotas')
+          .select('id, usage_count')
+          .eq('user_id', userId)
+          .eq('period', currentMonth)
+          .single();
+
+        if (existingQuota) {
+          // S'il a déjà une ligne, on ajoute +1 à son compteur
+          await supabase
+            .from('user_quotas')
+            .update({ usage_count: existingQuota.usage_count + 1 })
+            .eq('id', existingQuota.id);
+        } else {
+          // Si c'est son tout premier quiz du mois, on crée la ligne avec le compteur à 1
+          await supabase
+            .from('user_quotas')
+            .insert([{ user_id: userId, period: currentMonth, usage_count: 1 }]);
+        }
+        // ----------------------------------------------
       }
     }
 
