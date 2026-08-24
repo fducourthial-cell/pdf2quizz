@@ -111,22 +111,32 @@ export default function ProfilPage() {
   };
 
  // --- FONCTION POUR LE PAIEMENT STRIPE ---
-  const handleManageSubscription = async () => {
+const handleManageSubscription = async () => {
     if (isPremium) {
-      alert("Redirection vers le Portail Client Stripe... (Étape suivante)");
+      alert("Redirection vers le Portail Client Stripe...");
     } else {
       try {
-        // On appelle notre route API que l'on vient de créer
+        // On récupère la session active de l'utilisateur dans le navigateur
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          alert("Vous devez être connecté pour vous abonner.");
+          return;
+        }
+
         const response = await fetch('/api/stripe/checkout', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            // On transmet le jeton d'authentification dans les en-têtes
+            'Authorization': `Bearer ${session.access_token}`
+          },
         });
 
         const data = await response.json();
 
         if (!response.ok) throw new Error(data.error || 'Erreur de paiement');
 
-        // Si l'API nous renvoie une URL Stripe, on y envoie l'utilisateur !
         if (data.url) {
           window.location.href = data.url;
         }
