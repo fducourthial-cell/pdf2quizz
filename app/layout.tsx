@@ -16,16 +16,13 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <head>
-        {/* --- DÉBUT : SCRIPT GOOGLE ADSENSE --- */}
-        {/* Remplace 'ca-pub-TON_ID_PUBLISHER' par ton vrai ID AdSense */}
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-TON_ID_PUBLISHER"
+       <head>
+        {/* SCRIPT GOOGLE ADSENSE */}
+        <script 
+          async 
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1357620071000352" 
           crossOrigin="anonymous"
-          strategy="lazyOnload"
-        />
-        {/* --- FIN : SCRIPT GOOGLE ADSENSE --- */}
+        ></script>
       </head>
       <body className="flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
         
