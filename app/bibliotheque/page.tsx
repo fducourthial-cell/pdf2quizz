@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FileText, Calendar, ArrowRight, Trash2, Edit2, Check, X } from 'lucide-react';
 import Link from 'next/link';
+import AdBanner from '@/components/AdBanner'; // <-- Import du composant pub
 
 interface QuizItem {
   id: string;
@@ -20,33 +21,51 @@ interface QuizItem {
 export default function BibliothequePage() {
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // NOUVEAU : État pour la gestion du compte Premium
+  const [isPremium, setIsPremium] = useState(false);
 
   // États pour gérer l'édition du nom d'un quiz
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState<string>('');
 
-  // Charger les quiz depuis Supabase
+  // Charger les quiz et le statut Premium depuis Supabase
   useEffect(() => {
-    async function fetchQuizzes() {
+    async function fetchData() {
       try {
-        // On récupère uniquement les quiz qui NE SONT PAS dans la corbeille
-        // On utilise is() pour gérer les anciennes lignes où is_trashed est null
-        const { data, error } = await supabase
+        // 1. On récupère l'utilisateur actuel pour vérifier son abonnement
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: subData } = await supabase
+            .from('subscriptions')
+            .select('is_premium')
+            .eq('user_id', user.id)
+            .single();
+
+          if (subData && subData.is_premium) {
+            setIsPremium(true);
+          }
+        }
+
+        // 2. On récupère uniquement les quiz qui NE SONT PAS dans la corbeille
+        const { data: quizData, error } = await supabase
           .from('quizzes')
           .select('*')
           .or('is_trashed.is.null,is_trashed.eq.false')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        if (data) setQuizzes(data);
+        if (quizData) setQuizzes(quizData);
+        
       } catch (err) {
-        console.error("Erreur lors du chargement des quiz :", err);
+        console.error("Erreur lors du chargement des données :", err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchQuizzes();
+    fetchData();
   }, []);
 
   // Activer le mode édition pour un quiz
@@ -82,11 +101,9 @@ export default function BibliothequePage() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     
-    // Le message est plus doux puisqu'on sait qu'on peut récupérer le quiz
     if (!confirm("Voulez-vous envoyer ce quiz à la corbeille ?")) return;
 
     try {
-      // Au lieu de delete(), on fait un update
       const { error } = await supabase
         .from('quizzes')
         .update({ is_trashed: true })
@@ -94,7 +111,6 @@ export default function BibliothequePage() {
 
       if (error) throw error;
       
-      // On retire le quiz de l'affichage local de la bibliothèque
       setQuizzes(quizzes.filter(q => q.id !== id));
     } catch (err) {
       console.error("Erreur lors de l'envoi à la corbeille :", err);
@@ -108,6 +124,24 @@ export default function BibliothequePage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Mes Quiz</h1>
         <p className="text-gray-500">Retrouvez l'historique de tous les quiz générés à partir de vos PDF.</p>
       </header>
+
+      {/* --- ZONE DE PUBLICITÉ : S'affiche UNIQUEMENT si isPremium est false --- */}
+      {!loading && !isPremium && (
+        <div className="mb-8 bg-white border border-gray-200 rounded-2xl p-4 text-center shadow-sm">
+          <span className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Publicité</span>
+          
+          {/* Remplace "1234567890" par le vrai ID du bloc de pub de ton compte Google AdSense */}
+          <AdBanner dataAdSlot="1234567890" />
+          
+          <p className="text-xs text-gray-500 mt-3">
+            Soutenez PDF2Quiz et naviguez sans interruption avec le{' '}
+            <Link href="/profil" className="text-amber-600 font-medium hover:underline">
+              plan Premium
+            </Link>.
+          </p>
+        </div>
+      )}
+      {/* --- FIN ZONE DE PUBLICITÉ --- */}
 
       {loading ? (
         <div className="flex justify-center items-center min-h-[300px]">
@@ -138,7 +172,6 @@ export default function BibliothequePage() {
                 <div>
                   <div className="flex items-start justify-between mb-3 gap-2">
                     
-                    {/* Zone de gauche : Nombre de questions + Badge */}
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full">
                         {quiz.questions?.length || 0} questions
@@ -154,7 +187,6 @@ export default function BibliothequePage() {
                       )}
                     </div>
 
-                    {/* Zone de droite : Boutons Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       {!isEditing && (
                         <button 
@@ -175,7 +207,6 @@ export default function BibliothequePage() {
                     </div>
                   </div>
                   
-                  {/* Affichage du titre ou de l'input d'édition */}
                   {isEditing ? (
                     <div className="flex items-center gap-2 mb-3">
                       <input 
