@@ -139,6 +139,32 @@ export default function NewQuizPage() {
   const handleGenerateQuiz = async (settings: QuizConfig) => {
     if (!file) return;
 
+try {
+      // 1. --- VÉRIFICATION DE LA LIMITE MENSUELLE (1 Quiz / mois) ---
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Vous devez être connecté.");
+
+      // Obtenir la date du 1er jour du mois en cours
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      // Compter combien de quiz cet utilisateur a dans la base depuis le début du mois
+      const { count, error: countError } = await supabase
+        .from('quizzes') // Assure-toi que c'est bien le nom de ta table
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id) // Assure-toi que ta colonne s'appelle bien user_id
+        .gte('created_at', startOfMonth.toISOString());
+
+      if (countError) throw new Error("Impossible de vérifier votre quota mensuel.");
+
+      // Si le compteur est supérieur ou égal à 1, on bloque !
+      if (count !== null && count >= 1) {
+        alert("🔒 Limite atteinte !\n\nVous avez utilisé votre évaluation gratuite de ce mois-ci. Passez à la version Premium pour générer des évaluations en illimité !");
+        return; // Stoppe la fonction ici, on n'appelle pas l'IA.
+      }
+
+    
     try {
       setIsGenerating(true);
       setUploadStatus('Sécurisation et envoi du fichier...'); 
