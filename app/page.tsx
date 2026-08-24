@@ -120,7 +120,7 @@ export default function NewQuizPage() {
     setShowResults(false);
   };
 
-  const handleGenerateQuiz = async (settings: QuizConfig) => {
+ const handleGenerateQuiz = async (settings: QuizConfig) => {
     if (!file) return;
 
     try {
@@ -151,7 +151,18 @@ export default function NewQuizPage() {
       const data = await apiResponse.json();
       if (!apiResponse.ok) throw new Error(data.error || 'Erreur lors de la génération du quiz');
 
+      // --- LE QUIZ EST VALIDÉ ---
       setQuizQuestions(data.quiz);
+      
+      // On lance le chrono ici, uniquement en cas de succès !
+      if (settings.timerMode === 'auto') {
+        setTimeLeft(settings.questionCount * 30);
+      } else if (settings.timerMode === 'custom') {
+        setTimeLeft(settings.customMinutes * 60);
+      } else {
+        setTimeLeft(null);
+      }
+
     } catch (error: any) {
       console.error(error);
       alert(error.message || "Une erreur est survenue.");
