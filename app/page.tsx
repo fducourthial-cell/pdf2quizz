@@ -269,7 +269,7 @@ export default function NewQuizPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto pb-16 pt-8 min-h-screen flex flex-col">
+    <div className="max-w-5xl w-full px-4 sm:px-6 md:px-8 mx-auto pb-16 pt-8 min-h-screen flex flex-col">
       <div className="flex-grow">
         <header className="mb-8 flex justify-between items-start">
           <div>
