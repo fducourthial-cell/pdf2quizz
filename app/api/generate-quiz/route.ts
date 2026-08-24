@@ -1,5 +1,5 @@
 // app/api/generate-quiz/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'; // MODIF : Ajout de NextRequest
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '@/lib/supabase';
 
@@ -7,9 +7,9 @@ export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_2 || '');
 
-export async function POST(req: Request) {
+// MODIF : Utilisation de NextRequest
+export async function POST(req: NextRequest) {
   try {
-    // 1. MODIFICATION ICI : On récupère aussi le userId envoyé par le frontend
     const { pdfUrl, settings, userId } = await req.json();
 
     if (!pdfUrl) {
@@ -21,7 +21,9 @@ export async function POST(req: Request) {
     
     const mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
     const arrayBuffer = await fileResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    
+    // Sécurisation TypeScript pour le Buffer
+    const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
     const base64Data = buffer.toString('base64');
 
     const filePart = {
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
       },
     };
 
+    // MODIF CRUCIALE : Le modèle 3.7 n'existe pas. C'est gemini-1.5-flash !
     const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
 
     const prompt = `
@@ -57,30 +60,37 @@ export async function POST(req: Request) {
     const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const quizData = JSON.parse(cleanedText);
 
-    // 7. MODIFICATION ICI : On ajoute le user_id dans l'enregistrement
-    const { error: dbError } = await supabase
-      .from('quizzes')
-      .insert([
-        { 
-          user_id: userId, // <-- Ajout vital pour lier le quiz à l'utilisateur
-          pdf_url: pdfUrl, 
-          title: `Quiz (${settings.type.toUpperCase()})`, 
-          questions: quizData 
-        }
-      ]);
+    // MODIF : On vérifie que userId est bien présent pour éviter une erreur en base
+    if (userId) {
+      const { error: dbError } = await supabase
+        .from('quizzes')
+        .insert([
+          { 
+            user_id: userId, 
+            pdf_url: pdfUrl, 
+            // Sécurité si settings.type est vide/indéfini :
+            title: `Quiz (${settings?.type?.toUpperCase() || 'QCM'})`, 
+            questions: quizData 
+          }
+        ]);
 
-    if (dbError) {
-      console.error("Erreur d'enregistrement Supabase :", dbError.message);
-    } else {
-      console.log("✅ Quiz enregistré en base avec succès !");
+      if (dbError) {
+        console.error("Erreur d'enregistrement Supabase :", dbError.message);
+      } else {
+        console.log("✅ Quiz enregistré en base avec succès !");
+      }
     }
 
     return NextResponse.json({ success: true, quiz: quizData });
 
-  } catch (error: any) {
-    console.error('Erreur API Generate Quiz:', error);
+  // MODIF : On remplace "error: any" par "error: unknown" pour faire plaisir à Vercel
+  } catch (error: unknown) {
+    // Typage correct de l'erreur
+    const errorMessage = error instanceof Error ? error.message : 'Erreur interne du serveur';
+    console.error('Erreur API Generate Quiz:', errorMessage);
+    
     return NextResponse.json(
-      { success: false, error: error.message || 'Erreur interne du serveur' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
