@@ -110,22 +110,32 @@ export default function ProfilPage() {
     }
   };
 
-  // --- FONCTION POUR LE BOUTON STRIPE ---
-  const handleManageSubscription = () => {
+ // --- FONCTION POUR LE PAIEMENT STRIPE ---
+  const handleManageSubscription = async () => {
     if (isPremium) {
-      alert("Redirection vers le Portail Client Stripe... (En cours d'intégration)\nIci, le client pourra voir ses factures et se désabonner.");
+      alert("Redirection vers le Portail Client Stripe... (Étape suivante)");
     } else {
-      alert("Redirection vers la page de Paiement Stripe... (En cours d'intégration)\nIci, le client pourra payer par CB ou Apple Pay.");
+      try {
+        // On appelle notre route API que l'on vient de créer
+        const response = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Erreur de paiement');
+
+        // Si l'API nous renvoie une URL Stripe, on y envoie l'utilisateur !
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } catch (err: any) {
+        console.error("Erreur Stripe:", err);
+        alert(err.message || "Impossible d'initialiser le paiement.");
+      }
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
 
   const progressPercentage = Math.min((quizCount / QUIZ_LIMIT) * 100, 100);
   let progressColor = "bg-blue-600";
