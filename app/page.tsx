@@ -276,9 +276,6 @@ export default function NewQuizPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Créer une nouvelle évaluation</h1>
             <p className="text-gray-500">Importez un document (PDF) ou une image (PNG, JPG).</p>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-            <LogOut size={16} /> Déconnexion
-          </button>
         </header>
 
         {isGenerating ? (
