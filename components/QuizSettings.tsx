@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Settings2, Zap } from 'lucide-react';
+import { Settings2, Zap, Clock } from 'lucide-react';
 
 interface QuizSettingsProps {
   isSubmitDisabled: boolean;
@@ -13,6 +13,9 @@ export type QuizConfig = {
   type: string;
   difficulty: string;
   questionCount: number;
+  // NOUVEAU : On ajoute les données du chrono dans la configuration exportée
+  timerMode: 'none' | 'auto' | 'custom';
+  customMinutes: number;
 };
 
 export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSettingsProps) {
@@ -20,13 +23,19 @@ export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSetting
   const [quizType, setQuizType] = useState('qcm');
   const [difficulty, setDifficulty] = useState('intermediaire');
   const [questionCount, setQuestionCount] = useState(10);
+  
+  // NOUVEAU : États pour le chronomètre
+  const [timerMode, setTimerMode] = useState<'none' | 'auto' | 'custom'>('none');
+  const [customMinutes, setCustomMinutes] = useState<number>(5);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       type: quizType,
       difficulty,
-      questionCount
+      questionCount,
+      timerMode,
+      customMinutes
     });
   };
 
@@ -34,10 +43,12 @@ export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSetting
     <form onSubmit={handleSubmit} className="mt-6 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
       <div className="flex items-center gap-2 mb-6">
         <Settings2 size={20} className="text-gray-500" />
-        <h3 className="text-lg font-semibold text-gray-900">Personnalisation du Quiz</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Personnalisation de l'évaluation</h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* MODIFICATION : Passage en grille 2x2 (md:grid-cols-2) pour équilibrer les 4 champs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        
         {/* Type de Quiz */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Format attendu</label>
@@ -80,6 +91,39 @@ export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSetting
             <option value={20}>20 questions (Examen)</option>
           </select>
         </div>
+
+        {/* NOUVEAU : Chronomètre */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <Clock size={14} className="text-gray-500"/> Limite de temps
+          </label>
+          <div className="flex gap-2">
+            <select 
+              value={timerMode}
+              onChange={(e) => setTimerMode(e.target.value as 'none' | 'auto' | 'custom')}
+              className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
+            >
+              <option value="none">Aucun (Temps libre)</option>
+              <option value="auto">Auto (30s / question)</option>
+              <option value="custom">Personnalisé</option>
+            </select>
+            
+            {/* Saisie des minutes qui s'affiche uniquement si "Personnalisé" est sélectionné */}
+            {timerMode === 'custom' && (
+              <div className="flex items-center gap-2 w-24">
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={customMinutes} 
+                  onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                  className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg text-center focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
+                />
+                <span className="text-sm text-gray-500 font-medium">min</span>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* Bouton de soumission */}
@@ -95,7 +139,7 @@ export default function QuizSettings({ isSubmitDisabled, onSubmit }: QuizSetting
           `}
         >
           <Zap size={18} className={isSubmitDisabled ? 'text-gray-400' : 'text-blue-200'} />
-          Générer le Quiz
+          Générer l'évaluation
         </button>
       </div>
     </form>
