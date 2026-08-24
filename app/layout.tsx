@@ -3,6 +3,7 @@ import './globals.css';
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import Script from 'next/script'; // <-- NOUVEL IMPORT ICI
 import AuthSidebar from '@/components/AuthSidebar';
 import { Plus, FileText, Clock, Trash2, Settings, User, Award } from 'lucide-react';
 
@@ -15,6 +16,17 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        {/* --- DÉBUT : SCRIPT GOOGLE ADSENSE --- */}
+        {/* Remplace 'ca-pub-TON_ID_PUBLISHER' par ton vrai ID AdSense */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-TON_ID_PUBLISHER"
+          crossOrigin="anonymous"
+          strategy="lazyOnload"
+        />
+        {/* --- FIN : SCRIPT GOOGLE ADSENSE --- */}
+      </head>
       <body className="flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
         
         {/* SIDEBAR */}
