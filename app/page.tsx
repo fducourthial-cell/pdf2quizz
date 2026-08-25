@@ -323,7 +323,7 @@ export default function NewQuizPage() {
 
         {/* ZONE DE PUB */}
         {!isPremium && (
-          <div className="w-full max-w-3xl mx-auto mb-6 bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+          <div className="w-full max-w-5xl mx-auto mb-6 bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
             <span className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Publicité</span>
             {/* Pense bien à remplacer 1234567890 par ton vrai numéro de bloc Google Adsense */}
             <AdBanner dataAdSlot="1234567890" />
