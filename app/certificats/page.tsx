@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Award, Download, Calendar } from 'lucide-react';
+import { Award, Download, Calendar, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Link from 'next/link';
@@ -26,11 +26,12 @@ export default function CertificatsPage() {
           setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'Apprenant');
         }
 
-        // 2. Récupérer UNIQUEMENT les quiz réussis (passed = true)
+        // 2. Récupérer UNIQUEMENT les quiz réussis (passed = true) non supprimés
         const { data, error } = await supabase
           .from('quizzes')
           .select('*')
           .eq('passed', true)
+          .or('is_trashed.is.null,is_trashed.eq.false')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -48,7 +49,6 @@ export default function CertificatsPage() {
     setDownloadingId(quiz.id);
     setQuizToDownload(quiz);
 
-    // On attend un tout petit peu (100ms) pour que React mette à jour le template caché avec les bonnes infos
     setTimeout(async () => {
       const certificateElement = document.getElementById('certificate-template');
       if (!certificateElement) {
@@ -75,6 +75,55 @@ export default function CertificatsPage() {
     }, 100);
   };
 
+  // --- EXPORT CSV POUR PROFESSIONNELS ---
+  const handleExportCSV = () => {
+    if (passedQuizzes.length === 0) return;
+
+    const headers = [
+      "ID Évaluation",
+      "Nom du candidat",
+      "Titre du Quiz",
+      "Date d'obtention",
+      "Nombre de questions",
+      "Score",
+      "Pourcentage",
+      "Statut",
+      "Lien PDF Source"
+    ];
+
+    const rows = passedQuizzes.map((quiz) => {
+      const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
+      const totalQuestions = quiz.questions?.length || 0;
+      const score = quiz.score !== undefined ? quiz.score : totalQuestions;
+      const scorePercent = totalQuestions > 0 ? `${Math.round((score / totalQuestions) * 100)}%` : "100%";
+      const cleanTitle = (quiz.title || "Quiz sans titre").replace(/"/g, '""');
+
+      return [
+        `"${quiz.id}"`,
+        `"${userName}"`,
+        `"${cleanTitle}"`,
+        `"${formattedDate}"`,
+        totalQuestions,
+        `"${score}/${totalQuestions}"`,
+        `"${scorePercent}"`,
+        `"Certifié"`,
+        `"${quiz.pdf_url || ''}"`
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    const today = new Date().toISOString().slice(0, 10);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `certifications_pdf2quiz_${today}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -85,12 +134,24 @@ export default function CertificatsPage() {
 
   return (
     <div className="max-w-5xl w-full px-4 sm:px-6 md:px-8 mx-auto pb-16 pt-8 min-h-screen flex flex-col">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <Award className="text-yellow-500" size={32} />
-          Mes Certifications
-        </h1>
-        <p className="text-gray-500">Retrouvez et téléchargez les certificats de vos quiz réussis.</p>
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+            <Award className="text-yellow-500" size={32} />
+            Mes Certifications
+          </h1>
+          <p className="text-gray-500">Retrouvez et téléchargez les certificats de vos quiz réussis.</p>
+        </div>
+
+        {passedQuizzes.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition shrink-0"
+          >
+            <FileSpreadsheet size={18} />
+            Exporter en CSV
+          </button>
+        )}
       </header>
 
       {passedQuizzes.length === 0 ? (
@@ -107,7 +168,7 @@ export default function CertificatsPage() {
           {passedQuizzes.map(quiz => {
             const date = new Date(quiz.created_at).toLocaleDateString('fr-FR');
             const isDownloading = downloadingId === quiz.id;
-            const scorePercent = Math.round((quiz.score / (quiz.questions?.length || 1)) * 100);
+            const scorePercent = Math.round(((quiz.score ?? quiz.questions?.length ?? 1) / (quiz.questions?.length || 1)) * 100);
 
             return (
               <div key={quiz.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col">
@@ -144,7 +205,7 @@ export default function CertificatsPage() {
         </div>
       )}
 
-      {/* TEMPLATE CACHÉ DYNAMIQUE (Utilise les données du quiz sur lequel on a cliqué) */}
+      {/* TEMPLATE CACHÉ DYNAMIQUE */}
       {quizToDownload && (
         <div className="absolute left-[-9999px] top-[-9999px]">
           <div 
@@ -170,7 +231,7 @@ export default function CertificatsPage() {
 
               <p className="text-xl text-gray-600 mb-4">A complété avec succès l'évaluation :</p>
               <h3 className="text-4xl font-bold text-blue-700 max-w-4xl leading-tight">
-                "{quizToDownload.title || 'Évaluation PDF2Quiz'}"
+                « {quizToDownload.title || 'Évaluation PDF2Quiz'} »
               </h3>
             </div>
 
@@ -179,7 +240,7 @@ export default function CertificatsPage() {
                 <div className="text-left">
                   <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
                   <p className="text-4xl font-black text-green-600">
-                    {Math.round((quizToDownload.score / (quizToDownload.questions?.length || 1)) * 100)}%
+                    {Math.round(((quizToDownload.score ?? quizToDownload.questions?.length ?? 1) / (quizToDownload.questions?.length || 1)) * 100)}%
                   </p>
                 </div>
                 <div className="w-px h-12 bg-gray-300"></div>
