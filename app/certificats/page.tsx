@@ -134,46 +134,57 @@ export default function CertificatsPage() {
     setQuizToDownload(quiz);
   };
 
-  // --- EXPORT CSV (UTF-8 + BOM, séparateur ';', champs échappés) ---
+// --- EXPORT CSV ULTIME (COLONNES + ACCENTS POUR EXCEL) ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
-    const headers = ['Nom du candidat', 'Nom du test', 'Résultat obtenu', 'Date'];
+    // 1. Définition des 4 colonnes
+    const headers = [
+      "Nom du candidat",
+      "Nom du test",
+      "Résultat obtenu",
+      "Date"
+    ];
 
+    // 2. Formatage des données
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
-      const score = quiz.score ?? totalQuestions;
-      const scorePercent = getScorePercent(quiz);
-      const resultText = `${score}/${totalQuestions} (${scorePercent}%)`;
-      const title = quiz.title || 'Quiz sans titre';
+      const score = quiz.score !== undefined ? quiz.score : totalQuestions;
+      const scorePercent = totalQuestions > 0 ? `${Math.round((score / totalQuestions) * 100)}%` : "100%";
+      const resultText = `${score}/${totalQuestions} (${scorePercent})`;
+      const cleanTitle = (quiz.title || "Quiz sans titre").replace(/"/g, '""');
 
       return [
-        escapeCsvField(userName),
-        escapeCsvField(title),
-        escapeCsvField(resultText),
-        escapeCsvField(formattedDate),
+        `"${userName}"`,
+        `"${cleanTitle}"`,
+        `"${resultText}"`,
+        `"${formattedDate}"`
       ].join(';');
     });
 
-    // "sep=;" force Excel à utiliser le point-virgule comme séparateur de colonnes.
-    // Le BOM UTF-8 ("\uFEFF") en tête permet à Excel de détecter l'encodage et
-    // d'afficher correctement les accents, sans les limites du hack Windows-1252
-    // (qui casse dès qu'un caractère hors Latin-1 apparaît : œ, €, « », etc.)
-    const csvString = 'sep=;\r\n' + [headers.join(';'), ...rows].join('\r\n');
-    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    // 3. LA SOLUTION : "sep=;" pour forcer les colonnes, SANS utiliser d'UTF-8
+    const csvString = "sep=;\r\n" + [headers.join(';'), ...rows].join('\r\n');
 
+    // 4. Conversion binaire forcée en Windows-1252 (ANSI) pour que Excel lise les accents
+    const buffer = new Uint8Array(csvString.length);
+    for (let i = 0; i < csvString.length; i++) {
+      buffer[i] = csvString.charCodeAt(i) & 0xff;
+    }
+
+    // 5. Création et téléchargement du fichier
+    const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    
     const today = new Date().toISOString().slice(0, 10);
     link.setAttribute('href', url);
     link.setAttribute('download', `certifications_${today}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
-
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
