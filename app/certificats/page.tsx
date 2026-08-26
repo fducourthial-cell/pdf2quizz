@@ -17,7 +17,7 @@ interface Quiz {
   passed: boolean;
 }
 
-// --- Utilitaire : calcul du score en % (factorisé, utilisé partout) ---
+// --- Utilitaire : calcul du score en % ---
 function getScorePercent(quiz: Quiz): number {
   const total = quiz.questions?.length || 0;
   const score = quiz.score ?? total;
@@ -29,7 +29,7 @@ function escapeCsvField(value: string): string {
   return `"${(value ?? '').replace(/"/g, '""')}"`;
 }
 
-// --- Utilitaire : nom de fichier sûr (retire les caractères interdits) ---
+// --- Utilitaire : nom de fichier sûr ---
 function sanitizeFilename(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, '-').trim() || 'certificat';
 }
@@ -48,13 +48,11 @@ export default function CertificatsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // 1. Récupérer l'utilisateur
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'Apprenant');
         }
 
-        // 2. Récupérer UNIQUEMENT les quiz réussis (passed = true) non supprimés
         const { data, error } = await supabase
           .from('quizzes')
           .select('*')
@@ -74,13 +72,13 @@ export default function CertificatsPage() {
     fetchData();
   }, []);
 
-  // --- Génération du PDF : déclenchée par le montage du template caché ---
-  // (remplace le setTimeout(100) fragile par un effet lié à quizToDownload,
-  // avec double requestAnimationFrame pour garantir que le DOM est peint)
+  // --- Génération du PDF : Double requestAnimationFrame propre pour TypeScript ---
   useEffect(() => {
     if (!quizToDownload) return;
 
     let cancelled = false;
+    let raf1: number;
+    let raf2: number;
 
     const generate = async () => {
       const certificateElement = document.getElementById('certificate-template');
@@ -115,16 +113,14 @@ export default function CertificatsPage() {
       }
     };
 
-    // Double rAF : garantit que le template caché a bien été peint dans le DOM
-    // avant que html2canvas ne le capture.
-    const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(generate);
-      (generate as any)._raf2 = raf2;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(generate);
     });
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
     };
   }, [quizToDownload]);
 
@@ -134,45 +130,37 @@ export default function CertificatsPage() {
     setQuizToDownload(quiz);
   };
 
-// --- EXPORT CSV ULTIME (COLONNES + ACCENTS POUR EXCEL) ---
+  // --- EXPORT CSV ULTIME (COLONNES + ACCENTS POUR EXCEL) ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
-    // 1. Définition des 4 colonnes
-    const headers = [
-      "Nom du candidat",
-      "Nom du test",
-      "Résultat obtenu",
-      "Date"
-    ];
+    const headers = ["Nom du candidat", "Nom du test", "Résultat obtenu", "Date"];
 
-    // 2. Formatage des données
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
-      const score = quiz.score !== undefined ? quiz.score : totalQuestions;
-      const scorePercent = totalQuestions > 0 ? `${Math.round((score / totalQuestions) * 100)}%` : "100%";
-      const resultText = `${score}/${totalQuestions} (${scorePercent})`;
-      const cleanTitle = (quiz.title || "Quiz sans titre").replace(/"/g, '""');
+      const score = quiz.score !== undefined && quiz.score !== null ? quiz.score : totalQuestions;
+      const scorePercent = getScorePercent(quiz);
+      const resultText = `${score}/${totalQuestions} (${scorePercent}%)`;
+      const title = quiz.title || "Quiz sans titre";
 
+      // Utilisation propre de la fonction d'échappement pour éviter les erreurs ESLint
       return [
-        `"${userName}"`,
-        `"${cleanTitle}"`,
-        `"${resultText}"`,
-        `"${formattedDate}"`
+        escapeCsvField(userName),
+        escapeCsvField(title),
+        escapeCsvField(resultText),
+        escapeCsvField(formattedDate)
       ].join(';');
     });
 
-    // 3. LA SOLUTION : "sep=;" pour forcer les colonnes, SANS utiliser d'UTF-8
     const csvString = "sep=;\r\n" + [headers.join(';'), ...rows].join('\r\n');
 
-    // 4. Conversion binaire forcée en Windows-1252 (ANSI) pour que Excel lise les accents
+    // Conversion en Windows-1252 (ANSI) pour Excel
     const buffer = new Uint8Array(csvString.length);
     for (let i = 0; i < csvString.length; i++) {
       buffer[i] = csvString.charCodeAt(i) & 0xff;
     }
 
-    // 5. Création et téléchargement du fichier
     const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -183,6 +171,7 @@ export default function CertificatsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url); // Nettoyage de la mémoire
   };
   
   if (loading) {
@@ -324,7 +313,7 @@ export default function CertificatsPage() {
               </div>
               <div className="text-right">
                 <p className="text-sm font-bold text-gray-400 mb-1">Généré et certifié par</p>
-                <p className="text-3xl font-black text-blue-600 tracking-tight">PDF2Quiz AI</p>
+                <p className="text-3xl font-black text-blue-600 tracking-tight">FormaGen</p>
               </div>
             </div>
           </div>
