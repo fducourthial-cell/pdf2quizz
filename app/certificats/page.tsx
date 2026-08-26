@@ -75,11 +75,11 @@ export default function CertificatsPage() {
     }, 100);
   };
 
- // --- EXPORT CSV ÉPURÉ POUR PROFESSIONNELS ---
+ // --- EXPORT CSV UNIVERSEL (COLONNES + ACCENTS EXCEL) ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
-    // 1. Définition des 4 colonnes souhaitées
+    // 1. Définition des 4 colonnes
     const headers = [
       "Nom du candidat",
       "Nom du test",
@@ -87,7 +87,7 @@ export default function CertificatsPage() {
       "Date"
     ];
 
-    // 2. Formatage des données
+    // 2. Formatage des lignes
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
@@ -104,17 +104,11 @@ export default function CertificatsPage() {
       ].join(';');
     });
 
- // 1. On assemble les lignes avec le séparateur ";" et le saut de ligne Windows "\r\n"
-    const csvString = [headers.join(';'), ...rows].join('\r\n');
+    // 3. BOM UTF-8 (\uFEFF) + Directive de séparation Windows (sep=;\r\n) + Lignes Windows (\r\n)
+    const csvContent = '\uFEFFsep=;\r\n' + [headers.join(';'), ...rows].join('\r\n');
 
-    // 2. Conversion propre en encodage Windows-1252 / ANSI
-    const buffer = new Uint8Array(csvString.length);
-    for (let i = 0; i < csvString.length; i++) {
-      buffer[i] = csvString.charCodeAt(i) & 0xff;
-    }
-
-    // 3. Téléchargement du fichier
-    const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
+    // 4. Téléchargement en UTF-8 natif
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
