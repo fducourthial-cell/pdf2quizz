@@ -7,7 +7,7 @@ import AdBanner from '@/components/AdBanner';
 import Dropzone from '@/components/Dropzone';
 import QuizSettings, { QuizConfig } from '@/components/QuizSettings';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle2, XCircle, RotateCcw, Award, LogOut, Mail, Lock, Clock } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, Award, Mail, Lock, Clock } from 'lucide-react';
 
 interface Question {
   question: string;
@@ -144,10 +144,6 @@ export default function NewQuizPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
   // --- FONCTIONS DU QUIZ ---
   const handleFileAccepted = (acceptedFile: File) => {
     setFile(acceptedFile);
@@ -161,45 +157,46 @@ export default function NewQuizPage() {
     if (!file) return;
 
     try {
+      // 0. RÉCUPÉRER L'UTILISATEUR CONNECTÉ
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        alert("Vous devez être connecté pour générer un quiz.");
+        return;
+      }
+
       // 1. Récupérer les infos de l'abonnement
-const { data: subData } = await supabase
-  .from('subscriptions')
-  .select('plan_type, extra_credits')
-  .eq('user_id', user.id)
-  .single();
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('plan_type, extra_credits')
+        .eq('user_id', user.id)
+        .single();
 
-const planType = subData?.plan_type || 'free';
-const extraCredits = subData?.extra_credits || 0;
+      const planType = subData?.plan_type || 'free';
+      const extraCredits = subData?.extra_credits || 0;
 
-// 2. Définir la limite mensuelle selon le plan
-let monthlyLimit = 1; // Gratuit
-if (planType === 'light') monthlyLimit = 20;
-if (planType === 'premium') monthlyLimit = 500;
-if (planType === 'ultimate') monthlyLimit = 1000;
+      // 2. Définir la limite mensuelle selon le plan
+      let monthlyLimit = 1; // Gratuit
+      if (planType === 'light') monthlyLimit = 20;
+      if (planType === 'premium') monthlyLimit = 500;
+      if (planType === 'ultimate') monthlyLimit = 1000;
 
-// 3. Récupérer l'usage du mois en cours
-const currentMonth = new Date().toISOString().slice(0, 7);
-const { data: quotaData, error: quotaError } = await supabase
-  .from('user_quotas')
-  .select('usage_count')
-  .eq('user_id', user.id)
-  .eq('period', currentMonth)
-  .single();
+      // 3. Récupérer l'usage du mois en cours
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const { data: quotaData } = await supabase
+        .from('user_quotas')
+        .select('usage_count')
+        .eq('user_id', user.id)
+        .eq('period', currentMonth)
+        .single();
 
-const currentUsage = quotaData?.usage_count || 0;
+      const currentUsage = quotaData?.usage_count || 0;
 
-// 4. LOGIQUE DE BLOCAGE
-// Si l'utilisateur a dépassé son forfait mensuel ET qu'il n'a pas de crédits supplémentaires
-if (currentUsage >= monthlyLimit && extraCredits <= 0) {
-  alert(`🔒 Limite atteinte !\n\nVous avez atteint la limite de votre forfait (${monthlyLimit} quiz). Souscrivez à un forfait supérieur ou achetez un pack de crédits ponctuels pour continuer.`);
-  return; 
-}
-
-// NOTE POUR TON BACKEND API (/api/generate-quiz) :
-// Dans ton fichier backend qui appelle l'IA, tu devras vérifier la même chose.
-// Si l'utilisateur génère un quiz alors que (currentUsage >= monthlyLimit), 
-// cela signifie qu'il utilise un crédit ponctuel.
-// Ton backend devra donc faire un UPDATE pour diminuer extra_credits de -1 !
+      // 4. LOGIQUE DE BLOCAGE
+      if (currentUsage >= monthlyLimit && extraCredits <= 0) {
+        alert(`🔒 Limite atteinte !\n\nVous avez atteint la limite de votre forfait (${monthlyLimit} quiz). Souscrivez à un forfait supérieur ou achetez un pack de crédits ponctuels pour continuer.`);
+        return; 
+      }
 
       setIsGenerating(true);
       setUploadStatus('Sécurisation et envoi du fichier...'); 
