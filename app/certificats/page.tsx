@@ -75,7 +75,7 @@ export default function CertificatsPage() {
     }, 100);
   };
 
- // --- EXPORT CSV UNIVERSEL (COLONNES + ACCENTS EXCEL) ---
+// --- EXPORT CSV ULTIME (COLONNES + ACCENTS POUR EXCEL) ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
@@ -87,7 +87,7 @@ export default function CertificatsPage() {
       "Date"
     ];
 
-    // 2. Formatage des lignes
+    // 2. Formatage des données
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
@@ -104,11 +104,17 @@ export default function CertificatsPage() {
       ].join(';');
     });
 
-    // 3. BOM UTF-8 (\uFEFF) + Directive de séparation Windows (sep=;\r\n) + Lignes Windows (\r\n)
-    const csvContent = '\uFEFFsep=;\r\n' + [headers.join(';'), ...rows].join('\r\n');
+    // 3. LA SOLUTION : "sep=;" pour forcer les colonnes, SANS utiliser d'UTF-8
+    const csvString = "sep=;\r\n" + [headers.join(';'), ...rows].join('\r\n');
 
-    // 4. Téléchargement en UTF-8 natif
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // 4. Conversion binaire forcée en Windows-1252 (ANSI) pour que Excel lise les accents
+    const buffer = new Uint8Array(csvString.length);
+    for (let i = 0; i < csvString.length; i++) {
+      buffer[i] = csvString.charCodeAt(i) & 0xff;
+    }
+
+    // 5. Création et téléchargement du fichier
+    const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
@@ -119,7 +125,7 @@ export default function CertificatsPage() {
     link.click();
     document.body.removeChild(link);
   };
-
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
