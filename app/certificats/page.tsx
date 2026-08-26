@@ -104,15 +104,17 @@ export default function CertificatsPage() {
       ].join(';');
     });
 
-    // 3. Directive "sep=;" + BOM UTF-8 pour forcer la séparation des colonnes dans Excel
+ // 1. On assemble les lignes avec le séparateur ";" et le saut de ligne Windows "\r\n"
     const csvString = [headers.join(';'), ...rows].join('\r\n');
-    // Conversion des caractères spéciaux en binaire Windows-1252 / ISO-8859-1
+
+    // 2. Conversion propre en encodage Windows-1252 / ANSI
     const buffer = new Uint8Array(csvString.length);
     for (let i = 0; i < csvString.length; i++) {
       buffer[i] = csvString.charCodeAt(i) & 0xff;
     }
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    // 3. Téléchargement du fichier
+    const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
