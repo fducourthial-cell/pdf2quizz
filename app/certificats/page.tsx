@@ -106,6 +106,12 @@ export default function CertificatsPage() {
 
     // 3. Directive "sep=;" + BOM UTF-8 pour forcer la séparation des colonnes dans Excel
     const csvContent = '\uFEFFsep=;\n' + [headers.join(';'), ...rows].join('\n');
+
+    // Conversion des caractères spéciaux en binaire Windows-1252 / ISO-8859-1
+    const buffer = new Uint8Array(csvString.length);
+    for (let i = 0; i < csvString.length; i++) {
+      buffer[i] = csvString.charCodeAt(i) & 0xff;
+    }
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
