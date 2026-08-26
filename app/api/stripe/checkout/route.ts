@@ -5,9 +5,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
+    // 1. Vérification de la clé secrète uniquement
+    if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json(
-        { error: "Configuration Stripe manquante sur le serveur." },
+        { error: "Configuration Stripe manquante sur le serveur (Clé secrète)." },
         { status: 500 }
       );
     }
@@ -16,36 +17,61 @@ export async function POST(req: NextRequest) {
       apiVersion: '2024-06-20',
     });
 
-    // On récupère le jeton envoyé par le bouton
+    // 2. Authentification sécurisée via le jeton
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ error: 'Non autorisé (Token manquant)' }, { status: 401 });
     }
 
     const token = authHeader.replace('Bearer ', '');
-    
-    // On demande à Supabase d'identifier l'utilisateur grâce à ce jeton
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
       return NextResponse.json({ error: 'Session invalide ou expirée.' }, { status: 401 });
     }
 
-    const origin = req.headers.get('origin') || 'https://pdf2quiz.vercel.app';
+    // 3. Récupérer le plan choisi envoyé par le front-end
+    const body = await req.json();
+    const selectedPlan = body.planId || 'premium'; // 'premium' par défaut si rien n'est envoyé
 
+    // 4. Assigner le bon Price ID et le bon mode d'achat
+    let stripePriceId = '';
+    let mode: 'payment' | 'subscription' = 'subscription';
+
+    if (selectedPlan === 'light') {
+      stripePriceId = process.env.STRIPE_PRICE_LIGHT || '';
+    } else if (selectedPlan === 'premium') {
+      stripePriceId = process.env.STRIPE_PRICE_PREMIUM || '';
+    } else if (selectedPlan === 'ultimate') {
+      stripePriceId = process.env.STRIPE_PRICE_ULTIMATE || '';
+    } else if (selectedPlan === 'pack_50') {
+      stripePriceId = process.env.STRIPE_PRICE_PACK_50 || '';
+      mode = 'payment'; // Attention : le pack est un achat unique, pas un abonnement !
+    }
+
+    if (!stripePriceId) {
+      return NextResponse.json(
+        { error: `ID de prix manquant pour le forfait : ${selectedPlan}. Vérifiez vos variables Vercel.` },
+        { status: 500 }
+      );
+    }
+
+    const origin = req.headers.get('origin') || 'https://pdf2quizz.vercel.app';
+
+    // 5. Création de la session Stripe
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID,
+          price: stripePriceId,
           quantity: 1,
         },
       ],
-      mode: 'subscription',
+      mode: mode,
       success_url: `${origin}/profil?success=true`,
       cancel_url: `${origin}/profil?canceled=true`,
       customer_email: user.email,
-      client_reference_id: user.id,
+      client_reference_id: user.id, // Très important pour que le Webhook retrouve l'utilisateur
     });
 
     return NextResponse.json({ url: session.url });
