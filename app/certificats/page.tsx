@@ -8,14 +8,42 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Link from 'next/link';
 
+interface Quiz {
+  id: string;
+  title: string | null;
+  score?: number | null;
+  questions?: unknown[] | null;
+  created_at: string;
+  passed: boolean;
+}
+
+// --- Utilitaire : calcul du score en % (factorisé, utilisé partout) ---
+function getScorePercent(quiz: Quiz): number {
+  const total = quiz.questions?.length || 0;
+  const score = quiz.score ?? total;
+  return total > 0 ? Math.round((score / total) * 100) : 100;
+}
+
+// --- Utilitaire : échappement d'un champ pour CSV (RFC 4180) ---
+function escapeCsvField(value: string): string {
+  return `"${(value ?? '').replace(/"/g, '""')}"`;
+}
+
+// --- Utilitaire : nom de fichier sûr (retire les caractères interdits) ---
+function sanitizeFilename(name: string): string {
+  return name.replace(/[/\\?%*:|"<>]/g, '-').trim() || 'certificat';
+}
+
 export default function CertificatsPage() {
-  const [passedQuizzes, setPassedQuizzes] = useState<any[]>([]);
+  const [passedQuizzes, setPassedQuizzes] = useState<Quiz[]>([]);
   const [userName, setUserName] = useState<string>('Apprenant');
   const [loading, setLoading] = useState(true);
-  
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // États pour la génération du PDF
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [quizToDownload, setQuizToDownload] = useState<any>(null);
+  const [quizToDownload, setQuizToDownload] = useState<Quiz | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -35,9 +63,10 @@ export default function CertificatsPage() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        if (data) setPassedQuizzes(data);
+        if (data) setPassedQuizzes(data as Quiz[]);
       } catch (err) {
-        console.error("Erreur lors du chargement :", err);
+        console.error('Erreur lors du chargement :', err);
+        setLoadError("Impossible de charger vos certifications. Réessayez dans quelques instants.");
       } finally {
         setLoading(false);
       }
@@ -45,87 +74,106 @@ export default function CertificatsPage() {
     fetchData();
   }, []);
 
-  const downloadCertificate = async (quiz: any) => {
-    setDownloadingId(quiz.id);
-    setQuizToDownload(quiz);
+  // --- Génération du PDF : déclenchée par le montage du template caché ---
+  // (remplace le setTimeout(100) fragile par un effet lié à quizToDownload,
+  // avec double requestAnimationFrame pour garantir que le DOM est peint)
+  useEffect(() => {
+    if (!quizToDownload) return;
 
-    setTimeout(async () => {
+    let cancelled = false;
+
+    const generate = async () => {
       const certificateElement = document.getElementById('certificate-template');
       if (!certificateElement) {
-        setDownloadingId(null);
+        if (!cancelled) {
+          setPdfError("Le modèle de certificat n'a pas pu être chargé.");
+          setDownloadingId(null);
+          setQuizToDownload(null);
+        }
         return;
       }
 
       try {
-        const canvas = await html2canvas(certificateElement, { scale: 2 });
+        const canvas = await html2canvas(certificateElement, { scale: 2, useCORS: true });
+        if (cancelled) return;
+
         const imgData = canvas.toDataURL('image/png');
-        
         const pdf = new jsPDF('landscape', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`Certificat_${quiz.title || 'PDF2Quiz'}.pdf`);
+        pdf.save(`Certificat_${sanitizeFilename(quizToDownload.title || 'PDF2Quiz')}.pdf`);
       } catch (error) {
-        console.error("Erreur PDF :", error);
-        alert("Erreur lors de la création du certificat.");
+        console.error('Erreur PDF :', error);
+        if (!cancelled) setPdfError('Erreur lors de la création du certificat.');
       } finally {
-        setDownloadingId(null);
+        if (!cancelled) {
+          setDownloadingId(null);
+          setQuizToDownload(null);
+        }
       }
-    }, 100);
+    };
+
+    // Double rAF : garantit que le template caché a bien été peint dans le DOM
+    // avant que html2canvas ne le capture.
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(generate);
+      (generate as any)._raf2 = raf2;
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+    };
+  }, [quizToDownload]);
+
+  const downloadCertificate = (quiz: Quiz) => {
+    setPdfError(null);
+    setDownloadingId(quiz.id);
+    setQuizToDownload(quiz);
   };
 
-// --- EXPORT CSV ULTIME (COLONNES + ACCENTS POUR EXCEL) ---
+  // --- EXPORT CSV (UTF-8 + BOM, séparateur ';', champs échappés) ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
-    // 1. Définition des 4 colonnes
-    const headers = [
-      "Nom du candidat",
-      "Nom du test",
-      "Résultat obtenu",
-      "Date"
-    ];
+    const headers = ['Nom du candidat', 'Nom du test', 'Résultat obtenu', 'Date'];
 
-    // 2. Formatage des données
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
-      const score = quiz.score !== undefined ? quiz.score : totalQuestions;
-      const scorePercent = totalQuestions > 0 ? `${Math.round((score / totalQuestions) * 100)}%` : "100%";
-      const resultText = `${score}/${totalQuestions} (${scorePercent})`;
-      const cleanTitle = (quiz.title || "Quiz sans titre").replace(/"/g, '""');
+      const score = quiz.score ?? totalQuestions;
+      const scorePercent = getScorePercent(quiz);
+      const resultText = `${score}/${totalQuestions} (${scorePercent}%)`;
+      const title = quiz.title || 'Quiz sans titre';
 
       return [
-        `"${userName}"`,
-        `"${cleanTitle}"`,
-        `"${resultText}"`,
-        `"${formattedDate}"`
+        escapeCsvField(userName),
+        escapeCsvField(title),
+        escapeCsvField(resultText),
+        escapeCsvField(formattedDate),
       ].join(';');
     });
 
-    // 3. LA SOLUTION : "sep=;" pour forcer les colonnes, SANS utiliser d'UTF-8
-    const csvString = "sep=;\r\n" + [headers.join(';'), ...rows].join('\r\n');
-
-    // 4. Conversion binaire forcée en Windows-1252 (ANSI) pour que Excel lise les accents
-    const buffer = new Uint8Array(csvString.length);
-    for (let i = 0; i < csvString.length; i++) {
-      buffer[i] = csvString.charCodeAt(i) & 0xff;
-    }
-
-    // 5. Création et téléchargement du fichier
-    const blob = new Blob([buffer], { type: 'text/csv;charset=windows-1252;' });
+    // "sep=;" force Excel à utiliser le point-virgule comme séparateur de colonnes.
+    // Le BOM UTF-8 ("\uFEFF") en tête permet à Excel de détecter l'encodage et
+    // d'afficher correctement les accents, sans les limites du hack Windows-1252
+    // (qui casse dès qu'un caractère hors Latin-1 apparaît : œ, €, « », etc.)
+    const csvString = 'sep=;\r\n' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement('a');
-    
     const today = new Date().toISOString().slice(0, 10);
     link.setAttribute('href', url);
     link.setAttribute('download', `certifications_${today}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
-  
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -156,6 +204,18 @@ export default function CertificatsPage() {
         )}
       </header>
 
+      {loadError && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+          {loadError}
+        </div>
+      )}
+
+      {pdfError && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+          {pdfError}
+        </div>
+      )}
+
       {passedQuizzes.length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-12 text-center">
           <Award className="mx-auto text-gray-300 mb-4" size={48} />
@@ -167,10 +227,10 @@ export default function CertificatsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {passedQuizzes.map(quiz => {
+          {passedQuizzes.map((quiz) => {
             const date = new Date(quiz.created_at).toLocaleDateString('fr-FR');
             const isDownloading = downloadingId === quiz.id;
-            const scorePercent = Math.round(((quiz.score ?? quiz.questions?.length ?? 1) / (quiz.questions?.length || 1)) * 100);
+            const scorePercent = getScorePercent(quiz);
 
             return (
               <div key={quiz.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col">
@@ -180,8 +240,8 @@ export default function CertificatsPage() {
                       <Award size={24} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 line-clamp-2" title={quiz.title}>
-                        {quiz.title || "Quiz sans titre"}
+                      <h3 className="font-semibold text-gray-900 line-clamp-2" title={quiz.title ?? undefined}>
+                        {quiz.title || 'Quiz sans titre'}
                       </h3>
                       <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                         <Calendar size={14} /> Obtenu le {date}
@@ -190,15 +250,15 @@ export default function CertificatsPage() {
                   </div>
                   <span className="text-lg font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">{scorePercent}%</span>
                 </div>
-                
+
                 <div className="mt-auto pt-4 border-t border-gray-100">
-                  <button 
+                  <button
                     onClick={() => downloadCertificate(quiz)}
                     disabled={isDownloading}
-                    className="w-full py-2.5 px-4 bg-gray-50 hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-xl border border-gray-200 hover:border-blue-200 transition flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-4 bg-gray-50 hover:bg-blue-50 text-blue-700 text-sm font-semibold rounded-xl border border-gray-200 hover:border-blue-200 transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Download size={18} />
-                    {isDownloading ? "Génération du PDF..." : "Télécharger le certificat"}
+                    {isDownloading ? 'Génération du PDF...' : 'Télécharger le certificat'}
                   </button>
                 </div>
               </div>
@@ -207,11 +267,11 @@ export default function CertificatsPage() {
         </div>
       )}
 
-      {/* TEMPLATE CACHÉ DYNAMIQUE */}
+      {/* TEMPLATE CACHÉ DYNAMIQUE — purement technique, ignoré des lecteurs d'écran */}
       {quizToDownload && (
-        <div className="absolute left-[-9999px] top-[-9999px]">
-          <div 
-            id="certificate-template" 
+        <div className="absolute left-[-9999px] top-[-9999px]" aria-hidden="true">
+          <div
+            id="certificate-template"
             className="w-[1123px] h-[794px] bg-white relative flex flex-col items-center justify-center font-sans text-gray-900"
             style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', border: '24px solid #2563eb' }}
           >
@@ -220,13 +280,13 @@ export default function CertificatsPage() {
             <div className="flex flex-col items-center justify-center w-full mt-[-60px] px-24 text-center">
               <div className="mb-6">
                 <svg className="w-28 h-28 text-green-500 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z" />
                 </svg>
               </div>
 
               <h1 className="text-6xl font-black text-blue-900 mb-3 tracking-tight uppercase">Certificat de Réussite</h1>
               <p className="text-xl text-gray-600 mb-10">Ce document certifie formellement que</p>
-              
+
               <h2 className="text-5xl font-bold text-gray-900 mb-10 pb-4 border-b-2 border-gray-300 px-16 inline-block">
                 {userName}
               </h2>
@@ -241,9 +301,7 @@ export default function CertificatsPage() {
               <div className="flex items-center gap-12">
                 <div className="text-left">
                   <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Score Obtenu</p>
-                  <p className="text-4xl font-black text-green-600">
-                    {Math.round(((quizToDownload.score ?? quizToDownload.questions?.length ?? 1) / (quizToDownload.questions?.length || 1)) * 100)}%
-                  </p>
+                  <p className="text-4xl font-black text-green-600">{getScorePercent(quizToDownload)}%</p>
                 </div>
                 <div className="w-px h-12 bg-gray-300"></div>
                 <div className="text-left">
