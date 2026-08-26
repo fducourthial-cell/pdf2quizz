@@ -75,50 +75,45 @@ export default function CertificatsPage() {
     }, 100);
   };
 
-  // --- EXPORT CSV POUR PROFESSIONNELS ---
+ // --- EXPORT CSV ÉPURÉ POUR PROFESSIONNELS ---
   const handleExportCSV = () => {
     if (passedQuizzes.length === 0) return;
 
+    // 1. Définition des 4 colonnes souhaitées
     const headers = [
-      "ID Évaluation",
       "Nom du candidat",
-      "Titre du Quiz",
-      "Date d'obtention",
-      "Nombre de questions",
-      "Score",
-      "Pourcentage",
-      "Statut",
-      "Lien PDF Source"
+      "Nom du test",
+      "Résultat obtenu",
+      "Date"
     ];
 
+    // 2. Formatage des données
     const rows = passedQuizzes.map((quiz) => {
       const formattedDate = new Date(quiz.created_at).toLocaleDateString('fr-FR');
       const totalQuestions = quiz.questions?.length || 0;
       const score = quiz.score !== undefined ? quiz.score : totalQuestions;
       const scorePercent = totalQuestions > 0 ? `${Math.round((score / totalQuestions) * 100)}%` : "100%";
+      const resultText = `${score}/${totalQuestions} (${scorePercent})`;
       const cleanTitle = (quiz.title || "Quiz sans titre").replace(/"/g, '""');
 
       return [
-        `"${quiz.id}"`,
         `"${userName}"`,
         `"${cleanTitle}"`,
-        `"${formattedDate}"`,
-        totalQuestions,
-        `"${score}/${totalQuestions}"`,
-        `"${scorePercent}"`,
-        `"Certifié"`,
-        `"${quiz.pdf_url || ''}"`
+        `"${resultText}"`,
+        `"${formattedDate}"`
       ].join(';');
     });
 
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    // 3. Directive "sep=;" + BOM UTF-8 pour forcer la séparation des colonnes dans Excel
+    const csvContent = '\uFEFFsep=;\n' + [headers.join(';'), ...rows].join('\n');
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
     const today = new Date().toISOString().slice(0, 10);
     link.setAttribute('href', url);
-    link.setAttribute('download', `certifications_pdf2quiz_${today}.csv`);
+    link.setAttribute('download', `certifications_${today}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
