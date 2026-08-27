@@ -9,27 +9,33 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_2 || '');
 
 export async function POST(req: NextRequest) {
   try {
-    const { pdfUrl, settings, userId } = await req.json();
+    const { pdfUrl, settings, userId, fileName } = await req.json(); // <-- On récupère fileName
 
     if (!pdfUrl) {
       return NextResponse.json({ error: 'URL du fichier manquante' }, { status: 400 });
     }
 
-    // --- EXTRACTION DU NOM DU FICHIER POUR LE TITRE ---
+    // --- DÉTERMINATION DU TITRE PROPRE ---
     let fileTitle = 'Évaluation professionnelle';
-    try {
-      const decodedUrl = decodeURIComponent(pdfUrl);
-      const urlParts = decodedUrl.split('/');
-      const rawFileName = urlParts[urlParts.length - 1].split('?')[0]; // Récupère le nom brut du fichier
-      if (rawFileName) {
-        // Supprime l'extension (.pdf, .docx, etc.) et remplace les tirets/underscores par des espaces
-        const nameWithoutExt = rawFileName.replace(/\.[^/.]+$/, "");
-        fileTitle = nameWithoutExt.replace(/[-_]/g, " ").trim();
-        // Capitalise la première lettre
-        fileTitle = fileTitle.charAt(0).toUpperCase() + fileTitle.slice(1);
+    if (fileName) {
+      // Si le front-end envoie le vrai nom du fichier d'origine
+      const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+      fileTitle = nameWithoutExt.replace(/[-_]/g, " ").trim();
+      fileTitle = fileTitle.charAt(0).toUpperCase() + fileTitle.slice(1);
+    } else {
+      // Fallback de secours si l'URL est utilisée
+      try {
+        const decodedUrl = decodeURIComponent(pdfUrl);
+        const urlParts = decodedUrl.split('/');
+        const rawFileName = urlParts[urlParts.length - 1].split('?')[0];
+        if (rawFileName) {
+          const nameWithoutExt = rawFileName.replace(/\.[^/.]+$/, "");
+          fileTitle = nameWithoutExt.replace(/[-_]/g, " ").trim();
+          fileTitle = fileTitle.charAt(0).toUpperCase() + fileTitle.slice(1);
+        }
+      } catch (e) {
+        // Garde le titre par défaut si échec
       }
-    } catch (e) {
-      console.warn("Impossible d'extraire le nom du fichier, utilisation du titre par défaut.");
     }
     // --------------------------------------------------
 
