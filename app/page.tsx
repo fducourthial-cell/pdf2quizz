@@ -25,7 +25,6 @@ export default function NewQuizPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   
-  // L'état Premium bien placé à l'intérieur du composant !
   const [isPremium, setIsPremium] = useState(false);
 
   // --- ÉTATS DU QUIZ ---
@@ -33,6 +32,7 @@ export default function NewQuizPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [quizQuestions, setQuizQuestions] = useState<Question[] | null>(null);
+  const [quizId, setQuizId] = useState<string | null>(null); // Stocke l'ID Supabase du quiz généré
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
   const [showResults, setShowResults] = useState(false);
 
@@ -74,7 +74,7 @@ export default function NewQuizPage() {
     const timerId = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev && prev <= 1) {
-          setShowResults(true); 
+          handleValidateQuiz(); // Validation auto si le temps est écoulé
           alert("⏳ Temps écoulé ! Vos réponses ont été validées automatiquement.");
           return 0;
         }
@@ -148,6 +148,7 @@ export default function NewQuizPage() {
   const handleFileAccepted = (acceptedFile: File) => {
     setFile(acceptedFile);
     setQuizQuestions(null);
+    setQuizId(null);
     setSelectedAnswers({});
     setShowResults(false);
     setTimeLeft(null); 
@@ -157,7 +158,6 @@ export default function NewQuizPage() {
     if (!file) return;
 
     try {
-      // 0. RÉCUPÉRER L'UTILISATEUR CONNECTÉ
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -165,7 +165,6 @@ export default function NewQuizPage() {
         return;
       }
 
-      // 1. Récupérer les infos de l'abonnement
       const { data: subData } = await supabase
         .from('subscriptions')
         .select('plan_type, extra_credits')
@@ -175,13 +174,11 @@ export default function NewQuizPage() {
       const planType = subData?.plan_type || 'free';
       const extraCredits = subData?.extra_credits || 0;
 
-      // 2. Définir la limite mensuelle selon le plan
-      let monthlyLimit = 1; // Gratuit
+      let monthlyLimit = 1;
       if (planType === 'light') monthlyLimit = 20;
       if (planType === 'premium') monthlyLimit = 500;
       if (planType === 'ultimate') monthlyLimit = 1000;
 
-      // 3. Récupérer l'usage du mois en cours
       const currentMonth = new Date().toISOString().slice(0, 7);
       const { data: quotaData } = await supabase
         .from('user_quotas')
@@ -192,7 +189,6 @@ export default function NewQuizPage() {
 
       const currentUsage = quotaData?.usage_count || 0;
 
-      // 4. LOGIQUE DE BLOCAGE
       if (currentUsage >= monthlyLimit && extraCredits <= 0) {
         alert(`🔒 Limite atteinte !\n\nVous avez atteint la limite de votre forfait (${monthlyLimit} quiz). Souscrivez à un forfait supérieur ou achetez un pack de crédits ponctuels pour continuer.`);
         return; 
@@ -215,13 +211,15 @@ export default function NewQuizPage() {
       setLoadingStep(0);
       setUploadStatus('AI_PHASE'); 
 
+      // Appel de l'API en transmettant fileName pour récupérer le vrai nom propre
       const apiResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           pdfUrl: publicUrl, 
           settings: settings,
-          userId: user.id
+          userId: user.id,
+          fileName: file.name // <-- TRANSMISSION DU VRAI NOM DU FICHIER
         }),
       });
 
@@ -229,6 +227,19 @@ export default function NewQuizPage() {
       if (!apiResponse.ok) throw new Error(data.error || 'Erreur lors de la génération du quiz');
 
       setQuizQuestions(data.quiz);
+
+      // Récupération de l'ID du quiz tout juste inséré en base pour pouvoir le mettre à jour à la fin
+      const { data: latestQuiz } = await supabase
+        .from('quizzes')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestQuiz) {
+        setQuizId(latestQuiz.id);
+      }
       
       if (settings.timerMode === 'auto') {
         setTimeLeft(settings.questionCount * 30);
@@ -261,17 +272,39 @@ export default function NewQuizPage() {
     return score;
   };
 
+  // --- VALIDATION DU QUIZ ET SAUVEGARDE EN BASE ---
+  const handleValidateQuiz = async () => {
+    if (!quizQuestions) return;
+
+    const correctCount = calculateScore();
+    const totalQuestions = quizQuestions.length;
+    const percentage = (correctCount / totalQuestions) * 100;
+    const isPassed = percentage >= 80; // Seuil de réussite à 80%
+
+    setShowResults(true);
+
+    // Si on a l'ID du quiz, on met à jour la base de données immédiatement
+    if (quizId) {
+      try {
+        await supabase
+          .from('quizzes')
+          .update({ score: correctCount, passed: isPassed })
+          .eq('id', quizId);
+      } catch (err) {
+        console.error("Erreur lors de la mise à jour du score :", err);
+      }
+    }
+  };
+
   const handleReset = () => {
     setFile(null);
     setQuizQuestions(null);
+    setQuizId(null);
     setSelectedAnswers({});
     setShowResults(false);
     setTimeLeft(null); 
   };
 
-  // ==========================================
-  // L'INTERFACE
-  // ==========================================
   if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -341,7 +374,6 @@ export default function NewQuizPage() {
         {!isPremium && (
           <div className="w-full max-w-5xl mx-auto mb-6 bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
             <span className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Publicité</span>
-            {/* Pense bien à remplacer 1234567890 par ton vrai numéro de bloc Google Adsense */}
             <AdBanner dataAdSlot="1234567890" />
           </div>
         )}
@@ -419,21 +451,21 @@ export default function NewQuizPage() {
 
             {!showResults ? (
               <div className="flex justify-end pt-4">
-                <button onClick={() => setShowResults(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition">
+                <button onClick={handleValidateQuiz} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-md transition">
                   Valider mes réponses
                 </button>
               </div>
             ) : (
-              <div className={`bg-gray-900 text-white rounded-2xl p-6 shadow-lg border-2 transition-all ${calculateScore() === quizQuestions.length ? 'border-yellow-500' : 'border-gray-800'}`}>
+              <div className={`bg-gray-900 text-white rounded-2xl p-6 shadow-lg border-2 transition-all ${calculateScore() / quizQuestions.length >= 0.8 ? 'border-yellow-500' : 'border-gray-800'}`}>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-xl text-white ${calculateScore() === quizQuestions.length ? 'bg-yellow-500' : 'bg-blue-600'}`}>
+                    <div className={`p-4 rounded-xl text-white ${calculateScore() / quizQuestions.length >= 0.8 ? 'bg-yellow-500' : 'bg-blue-600'}`}>
                       <Award size={28} />
                     </div>
                     <div>
                       <h4 className="font-bold text-xl">Résultat final</h4>
                       <p className="text-base text-gray-300">
-                        Vous avez obtenu <span className="font-bold text-white">{calculateScore()} / {quizQuestions.length}</span> bonnes réponses.
+                        Vous avez obtenu <span className="font-bold text-white">{calculateScore()} / {quizQuestions.length}</span> bonnes réponses ({Math.round((calculateScore() / quizQuestions.length) * 100)}%).
                       </p>
                     </div>
                   </div>
@@ -441,13 +473,18 @@ export default function NewQuizPage() {
                     Recommencer
                   </button>
                 </div>
-                {calculateScore() === quizQuestions.length && (
-                  <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
-                    <CheckCircle2 className="text-yellow-500 shrink-0" size={24} />
-                    <div>
-                      <h5 className="text-yellow-500 font-bold">Certification validée ! 🏆</h5>
-                      <p className="text-sm text-yellow-500/80 mt-1">Félicitations, vous avez maîtrisé ce sujet à 100 %. Votre validation est acquise.</p>
+                {calculateScore() / quizQuestions.length >= 0.8 && (
+                  <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="text-yellow-500 shrink-0" size={24} />
+                      <div>
+                        <h5 className="text-yellow-500 font-bold">Certification validée ! 🏆</h5>
+                        <p className="text-sm text-yellow-500/80 mt-1">Félicitations, vous avez validé cette évaluation avec succès. Votre certificat est disponible !</p>
+                      </div>
                     </div>
+                    <Link href="/certificats" className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-950 font-bold rounded-xl text-sm transition shadow-sm shrink-0">
+                      Voir mon certificat
+                    </Link>
                   </div>
                 )}
               </div>
