@@ -16,7 +16,7 @@ export default function ProfilPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // --- NOUVELLE GESTION DE L'ABONNEMENT ---
+  // --- GESTION DE L'ABONNEMENT ---
   const [planType, setPlanType] = useState('free');
   const [extraCredits, setExtraCredits] = useState(0);
   const [quizCount, setQuizCount] = useState(0);
@@ -118,7 +118,6 @@ export default function ProfilPage() {
     }
   };
 
-  // --- NOUVELLE FONCTION POUR LE PAIEMENT STRIPE ---
   const handleSubscribe = async (selectedPlanId: string) => {
     setIsProcessingStripe(true);
     try {
@@ -130,7 +129,6 @@ export default function ProfilPage() {
         return;
       }
 
-      // Envoi du plan choisi à notre API avec le bon format JSON
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 
@@ -144,7 +142,6 @@ export default function ProfilPage() {
 
       if (!response.ok) throw new Error(data.error || 'Erreur de paiement');
 
-      // Redirection vers la page de paiement Stripe
       if (data.url) {
         window.location.href = data.url;
       }
@@ -168,7 +165,6 @@ export default function ProfilPage() {
   if (progressPercentage >= 80) progressColor = "bg-orange-500";
   if (progressPercentage >= 100) progressColor = "bg-red-600";
 
-  // Formatter le nom du plan pour l'affichage
   const planNames: Record<string, string> = {
     free: 'Gratuit',
     light: 'Light',
@@ -240,7 +236,7 @@ export default function ProfilPage() {
                 Vous avez droit à <strong className="text-gray-900">{QUIZ_LIMIT} quiz</strong> par mois.
               </p>
               
-             {/* Crédits ponctuels */}
+              {/* Crédits ponctuels */}
               {Number(extraCredits) > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
@@ -249,6 +245,7 @@ export default function ProfilPage() {
                   <span className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">{Number(extraCredits)}</span>
                 </div>
               )}
+            </div>
 
             {/* Jauge de conso */}
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
@@ -270,14 +267,13 @@ export default function ProfilPage() {
           </div>
         </section>
 
-        {/* BLOC 3 : Les offres (Upsell) */}
+        {/* BLOC 3 : Les offres */}
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Star size={20} /></div>
             <h2 className="text-xl font-semibold text-gray-800">Évoluer & Acheter des crédits</h2>
           </div>
 
-          {/* Grille des Forfaits Mensuels */}
           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Abonnements Mensuels</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             
@@ -334,7 +330,6 @@ export default function ProfilPage() {
             </div>
           </div>
 
-          {/* Achat Ponctuel (Crédits) */}
           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Besoin ponctuel</h3>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
