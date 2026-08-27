@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
 
     const prompt = `
       Agis comme un concepteur pédagogique expert.
