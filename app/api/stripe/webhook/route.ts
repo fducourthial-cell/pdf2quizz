@@ -30,6 +30,22 @@ export async function POST(req: NextRequest) {
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+    // --- 1. VÉRIFICATION ANTI-DOUBLON (IDEMPOTENCE) ---
+  const { error: insertError } = await supabaseAdmin
+    .from('stripe_events')
+    .insert({ id: event.id });
+
+  if (insertError) {
+    // Si l'erreur est un doublon (violation de la clé primaire)
+    if (insertError.code === '23505') {
+      console.log(`Événement Stripe ${event.id} déjà traité. Ignoré.`);
+      return NextResponse.json({ received: true }); // On dit à Stripe que tout va bien, mais on ne fait rien
+    }
+    // Si c'est une autre erreur de base de données
+    console.error("Erreur lors de l'insertion dans stripe_events :", insertError);
+    return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
+  }
+  // ---------------------------------------------------
   } catch (err: any) {
     console.error(`🚨 ERREUR SIGNATURE WEBHOOK : ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
