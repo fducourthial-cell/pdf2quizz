@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
+// Indispensable pour que la vérification de signature Stripe fonctionne sur Vercel
 export const runtime = 'nodejs';
 
 // 1. Initialisation avec la clé ADMIN (Passe-partout)
@@ -30,22 +31,24 @@ export async function POST(req: NextRequest) {
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+    
     // --- 1. VÉRIFICATION ANTI-DOUBLON (IDEMPOTENCE) ---
-  const { error: insertError } = await supabaseAdmin
-    .from('stripe_events')
-    .insert({ id: event.id });
+    const { error: insertError } = await supabaseAdmin
+      .from('stripe_events')
+      .insert({ id: event.id });
 
-  if (insertError) {
-    // Si l'erreur est un doublon (violation de la clé primaire)
-    if (insertError.code === '23505') {
-      console.log(`Événement Stripe ${event.id} déjà traité. Ignoré.`);
-      return NextResponse.json({ received: true }); // On dit à Stripe que tout va bien, mais on ne fait rien
+    if (insertError) {
+      // Si l'erreur est un doublon (violation de la clé primaire)
+      if (insertError.code === '23505') {
+        console.log(`Événement Stripe ${event.id} déjà traité. Ignoré.`);
+        return NextResponse.json({ received: true }); // On dit à Stripe que tout va bien, mais on ne fait rien
+      }
+      // Si c'est une autre erreur de base de données
+      console.error("Erreur lors de l'insertion dans stripe_events :", insertError);
+      return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
     }
-    // Si c'est une autre erreur de base de données
-    console.error("Erreur lors de l'insertion dans stripe_events :", insertError);
-    return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
-  }
-  // ---------------------------------------------------
+    // ---------------------------------------------------
+
   } catch (err: any) {
     console.error(`🚨 ERREUR SIGNATURE WEBHOOK : ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
@@ -73,8 +76,8 @@ export async function POST(req: NextRequest) {
         throw new Error("Impossible de récupérer l'ID du prix acheté.");
       }
 
-     if (priceId === STRIPE_PRICES.PACK_50) {
-        // --- LOGIQUE PACK 50 SÉCURISÉE (Atomique) ---
+      if (priceId === STRIPE_PRICES.PACK_50) {
+        // --- LOGIQUE PACK 50 SÉCURISÉE (Atomique via RPC) ---
         const { error } = await supabaseAdmin.rpc('add_extra_credits', {
           target_user_id: userId,
           customer_id: customerId,
@@ -83,20 +86,6 @@ export async function POST(req: NextRequest) {
         
         if (error) throw error;
         console.log(`✅ SUCCÈS : +50 crédits ajoutés de façon atomique pour ${userId}`);
-
-      } else {
-        
-        const currentCredits = subData?.extra_credits || 0;
-        const { error } = await supabaseAdmin
-          .from('subscriptions')
-          .upsert({
-            user_id: userId,
-            stripe_customer_id: customerId,
-            extra_credits: currentCredits + 50
-          }, { onConflict: 'user_id' });
-        
-        if (error) throw error;
-        console.log(`✅ SUCCÈS : +50 crédits ajoutés pour ${userId}`);
 
       } else {
         // --- LOGIQUE FORFAITS MENSUELS ---
