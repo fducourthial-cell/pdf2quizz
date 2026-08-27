@@ -241,12 +241,12 @@ export default function ProfilPage() {
               </p>
               
               {/* Crédits ponctuels */}
-              {extraCredits > 0 && (
+              {Number(extraCredits) > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
                     <Zap size={16} /> Crédits bonus restants
                   </div>
-                  <span className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">{extraCredits}</span>
+                  <span className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">{Number(extraCredits)}</span>
                 </div>
               )}
             </div>
