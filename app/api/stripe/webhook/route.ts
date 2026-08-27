@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
+export const runtime = 'nodejs';
+
 // 1. Initialisation avec la clé ADMIN (Passe-partout)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
