@@ -99,24 +99,31 @@ export async function POST(req: NextRequest) {
       } else {
         console.log("✅ Quiz enregistré en base avec succès !");
         
+       // --- MISE À JOUR DU QUOTA MENSUEL (VERSION ROBUSTE UPSERT) ---
         const currentMonth = new Date().toISOString().slice(0, 7); 
 
+        // On utilise un RPC ou un upsert direct si la contrainte d'unicité est bien configurée,
+        // ou une logique propre de recherche/insertion :
         const { data: existingQuota } = await supabase
           .from('user_quotas')
           .select('id, usage_count')
           .eq('user_id', userId)
           .eq('period', currentMonth)
-          .single();
+          .maybeSingle(); // Utilise maybeSingle pour éviter les erreurs si la ligne n'existe pas
 
         if (existingQuota) {
-          await supabase
+          const { error: updateError } = await supabase
             .from('user_quotas')
             .update({ usage_count: existingQuota.usage_count + 1 })
             .eq('id', existingQuota.id);
+
+          if (updateError) console.error("Erreur update quota :", updateError.message);
         } else {
-          await supabase
+          const { error: insertError } = await supabase
             .from('user_quotas')
             .insert([{ user_id: userId, period: currentMonth, usage_count: 1 }]);
+
+          if (insertError) console.error("Erreur insert quota :", insertError.message);
         }
       }
     }
