@@ -124,8 +124,7 @@ export default function PlayQuizPage() {
     return score;
   };
 
-  const handleValidate = async () => {
-    setShowResults(true);
+ const handleValidate = async () => {
     if (!quiz || !quiz.questions) return;
     
     const correctCount = calculateScore();
@@ -134,12 +133,26 @@ export default function PlayQuizPage() {
     const isPassed = percentage >= 80;
 
     try {
-      await supabase
+      // 1. On attend que Supabase ait bien enregistré les données
+      const { error } = await supabase
         .from('quizzes')
         .update({ score: correctCount, passed: isPassed })
         .eq('id', quizId);
+
+      if (error) throw error;
+
+      // 2. On met à jour l'état local du quiz pour que l'UI soit synchrone immédiatement
+      setQuiz((prev: any) => ({
+        ...prev,
+        score: correctCount,
+        passed: isPassed
+      }));
+
     } catch (err) {
       console.error("Erreur lors de la sauvegarde :", err);
+    } finally {
+      // 3. On affiche les résultats seulement après l'enregistrement
+      setShowResults(true);
     }
   };
 
