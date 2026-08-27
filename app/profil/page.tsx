@@ -240,15 +240,17 @@ export default function ProfilPage() {
                 Vous avez droit à <strong className="text-gray-900">{QUIZ_LIMIT} quiz</strong> par mois.
               </p>
               
-              {/* Crédits ponctuels */}
-         
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
-                    <Zap size={16} /> Crédits bonus restants
-                  </div>
-                  <span className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">{Number(extraCredits)}</span>
+              {/* Crédits ponctuels - FORCÉ SANS CONDITION POUR TEST */}
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
+                  <Zap size={16} /> Crédits bonus restants (Test)
                 </div>
-            
+                <span className="font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                  {extraCredits}
+                </span>
+              </div>
+            </div>
+
             {/* Jauge de conso */}
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
               <div className="flex justify-between items-center mb-2">
