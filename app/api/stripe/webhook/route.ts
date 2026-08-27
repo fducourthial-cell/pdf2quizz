@@ -3,13 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-// Indispensable pour que la vérification de signature Stripe fonctionne sur Vercel
 export const runtime = 'nodejs';
 
-// 1. Initialisation avec la clé ADMIN (Passe-partout)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // <-- Clé secrète vitale !
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -38,64 +36,50 @@ export async function POST(req: NextRequest) {
       .insert({ id: event.id });
 
     if (insertError) {
-      // Si l'erreur est un doublon (violation de la clé primaire)
       if (insertError.code === '23505') {
         console.log(`Événement Stripe ${event.id} déjà traité. Ignoré.`);
-        return NextResponse.json({ received: true }); // On dit à Stripe que tout va bien, mais on ne fait rien
+        return NextResponse.json({ received: true });
       }
-      // Si c'est une autre erreur de base de données
       console.error("Erreur lors de l'insertion dans stripe_events :", insertError);
       return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
     }
-    // ---------------------------------------------------
-
   } catch (err: any) {
     console.error(`🚨 ERREUR SIGNATURE WEBHOOK : ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
+  // --- 2. GESTION DES NOUVEAUX PAIEMENTS ---
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     
-    // Identifiant crucial qu'on a passé depuis la page checkout !
     const userId = session.client_reference_id;
     const customerId = session.customer as string;
 
     if (!userId) {
-      console.error("🚨 ERREUR : Aucun client_reference_id (userId) trouvé dans la session Stripe.");
+      console.error("🚨 ERREUR : Aucun client_reference_id (userId) trouvé.");
       return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
     }
 
     try {
-      console.log(`Traitement de la session pour l'utilisateur : ${userId}`);
-      
       const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
       const priceId = lineItems.data[0]?.price?.id;
 
-      if (!priceId) {
-        throw new Error("Impossible de récupérer l'ID du prix acheté.");
-      }
+      if (!priceId) throw new Error("Impossible de récupérer l'ID du prix acheté.");
 
       if (priceId === STRIPE_PRICES.PACK_50) {
-        // --- LOGIQUE PACK 50 SÉCURISÉE (Atomique via RPC) ---
         const { error } = await supabaseAdmin.rpc('add_extra_credits', {
           target_user_id: userId,
           customer_id: customerId,
           credits_to_add: 50
         });
-        
         if (error) throw error;
-        console.log(`✅ SUCCÈS : +50 crédits ajoutés de façon atomique pour ${userId}`);
-
+        console.log(`✅ SUCCÈS : +50 crédits (RPC) pour ${userId}`);
       } else {
-        // --- LOGIQUE FORFAITS MENSUELS ---
         let planType = 'free';
         if (priceId === STRIPE_PRICES.LIGHT) planType = 'light';
         else if (priceId === STRIPE_PRICES.PREMIUM) planType = 'premium';
         else if (priceId === STRIPE_PRICES.ULTIMATE) planType = 'ultimate';
-        else {
-          throw new Error(`Le priceId reçu (${priceId}) ne correspond à aucun forfait connu.`);
-        }
+        else throw new Error(`PriceId inconnu : ${priceId}`);
 
         const { error } = await supabaseAdmin
           .from('subscriptions')
@@ -109,11 +93,33 @@ export async function POST(req: NextRequest) {
         if (error) throw error;
         console.log(`✅ SUCCÈS : Forfait ${planType} activé pour ${userId}`);
       }
-
     } catch (error: any) {
-      console.error("🚨 ERREUR FATALE LORS DE LA MISE À JOUR SUPABASE :", error.message || error);
-      // On retourne une erreur 500 pour que Stripe sache que ça a échoué et réessaie plus tard
+      console.error("🚨 ERREUR MISE À JOUR SUPABASE :", error.message);
       return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
+    }
+  }
+
+  // --- 3. GESTION DES ANNULATIONS ET ÉCHECS DE PAIEMENT ---
+  if (event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = subscription.customer as string;
+
+    if (subscription.status === 'canceled' || subscription.status === 'unpaid' || subscription.status === 'past_due') {
+      try {
+        const { error } = await supabaseAdmin
+          .from('subscriptions')
+          .update({
+            is_premium: false,
+            plan_type: 'free'
+          })
+          .eq('stripe_customer_id', customerId);
+
+        if (error) throw error;
+        console.log(`❌ ABONNEMENT RÉVOQUÉ : Client Stripe ${customerId}`);
+      } catch (error: any) {
+        console.error("🚨 ERREUR RÉVOCATION :", error.message);
+        return NextResponse.json({ error: "Erreur base de données" }, { status: 500 });
+      }
     }
   }
 
