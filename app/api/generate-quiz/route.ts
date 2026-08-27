@@ -1,5 +1,5 @@
 // app/api/generate-quiz/route.ts
-import { NextRequest, NextResponse } from 'next/server'; // MODIF : Ajout de NextRequest
+import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '@/lib/supabase';
 
@@ -7,7 +7,6 @@ export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_2 || '');
 
-// MODIF : Utilisation de NextRequest
 export async function POST(req: NextRequest) {
   try {
     const { pdfUrl, settings, userId } = await req.json();
@@ -16,13 +15,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL du fichier manquante' }, { status: 400 });
     }
 
+    // --- EXTRACTION DU NOM DU FICHIER POUR LE TITRE ---
+    let fileTitle = 'Évaluation professionnelle';
+    try {
+      const decodedUrl = decodeURIComponent(pdfUrl);
+      const urlParts = decodedUrl.split('/');
+      const rawFileName = urlParts[urlParts.length - 1].split('?')[0]; // Récupère le nom brut du fichier
+      if (rawFileName) {
+        // Supprime l'extension (.pdf, .docx, etc.) et remplace les tirets/underscores par des espaces
+        const nameWithoutExt = rawFileName.replace(/\.[^/.]+$/, "");
+        fileTitle = nameWithoutExt.replace(/[-_]/g, " ").trim();
+        // Capitalise la première lettre
+        fileTitle = fileTitle.charAt(0).toUpperCase() + fileTitle.slice(1);
+      }
+    } catch (e) {
+      console.warn("Impossible d'extraire le nom du fichier, utilisation du titre par défaut.");
+    }
+    // --------------------------------------------------
+
     const fileResponse = await fetch(pdfUrl);
     if (!fileResponse.ok) throw new Error('Impossible de télécharger le fichier');
     
     const mimeType = fileResponse.headers.get('content-type') || 'application/pdf';
     const arrayBuffer = await fileResponse.arrayBuffer();
     
-    // Sécurisation TypeScript pour le Buffer
     const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
     const base64Data = buffer.toString('base64');
 
@@ -33,8 +49,7 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // MODIF CRUCIALE : Le modèle 3.7 n'existe pas. C'est gemini-1.5-flash !
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
       Agis comme un concepteur pédagogique expert.
@@ -60,8 +75,7 @@ export async function POST(req: NextRequest) {
     const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const quizData = JSON.parse(cleanedText);
 
-    // MODIF : On vérifie que userId est bien présent pour éviter une erreur en base
-   // 7. Enregistrement du quiz
+    // 7. Enregistrement du quiz avec le titre basé sur le nom du fichier
     if (userId) {
       const { error: dbError } = await supabase
         .from('quizzes')
@@ -69,7 +83,7 @@ export async function POST(req: NextRequest) {
           { 
             user_id: userId, 
             pdf_url: pdfUrl, 
-            title: `Quiz (${settings?.type?.toUpperCase() || 'QCM'})`, 
+            title: fileTitle, // <-- Le nom du fichier est injecté ici automatiquement !
             questions: quizData 
           }
         ]);
@@ -79,11 +93,8 @@ export async function POST(req: NextRequest) {
       } else {
         console.log("✅ Quiz enregistré en base avec succès !");
         
-        // --- NOUVEAU : MISE À JOUR DU QUOTA MENSUEL ---
-        // On génère la période actuelle (ex: "2026-08")
         const currentMonth = new Date().toISOString().slice(0, 7); 
 
-        // On regarde si l'utilisateur a déjà une ligne pour ce mois
         const { data: existingQuota } = await supabase
           .from('user_quotas')
           .select('id, usage_count')
@@ -92,26 +103,21 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (existingQuota) {
-          // S'il a déjà une ligne, on ajoute +1 à son compteur
           await supabase
             .from('user_quotas')
             .update({ usage_count: existingQuota.usage_count + 1 })
             .eq('id', existingQuota.id);
         } else {
-          // Si c'est son tout premier quiz du mois, on crée la ligne avec le compteur à 1
           await supabase
             .from('user_quotas')
             .insert([{ user_id: userId, period: currentMonth, usage_count: 1 }]);
         }
-        // ----------------------------------------------
       }
     }
 
     return NextResponse.json({ success: true, quiz: quizData });
 
-  // MODIF : On remplace "error: any" par "error: unknown" pour faire plaisir à Vercel
   } catch (error: unknown) {
-    // Typage correct de l'erreur
     const errorMessage = error instanceof Error ? error.message : 'Erreur interne du serveur';
     console.error('Erreur API Generate Quiz:', errorMessage);
     
