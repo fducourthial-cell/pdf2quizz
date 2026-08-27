@@ -73,13 +73,18 @@ export async function POST(req: NextRequest) {
         throw new Error("Impossible de récupérer l'ID du prix acheté.");
       }
 
-      if (priceId === STRIPE_PRICES.PACK_50) {
-        // --- LOGIQUE PACK 50 ---
-        const { data: subData } = await supabaseAdmin
-          .from('subscriptions')
-          .select('extra_credits')
-          .eq('user_id', userId)
-          .single();
+     if (priceId === STRIPE_PRICES.PACK_50) {
+        // --- LOGIQUE PACK 50 SÉCURISÉE (Atomique) ---
+        const { error } = await supabaseAdmin.rpc('add_extra_credits', {
+          target_user_id: userId,
+          customer_id: customerId,
+          credits_to_add: 50
+        });
+        
+        if (error) throw error;
+        console.log(`✅ SUCCÈS : +50 crédits ajoutés de façon atomique pour ${userId}`);
+
+      } else {
         
         const currentCredits = subData?.extra_credits || 0;
         const { error } = await supabaseAdmin
